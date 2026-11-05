@@ -29,6 +29,7 @@ export async function purgeReleaseData() {
       await tx.seizureEvent.deleteMany()
       await tx.seizureItem.deleteMany()
       await tx.seizure.deleteMany()
+      await tx.caseFile.deleteMany()
       await tx.citizen.deleteMany()
       await tx.lossAction.deleteMany()
       await tx.lossRecord.deleteMany()

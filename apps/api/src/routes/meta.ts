@@ -14,21 +14,46 @@ metaRouter.get(
   action(async (req, res) => {
     const actor = actorOf(req)
     const can = (key: string) => actor.permissions.has(key)
-    const [employeeCounts, wanted, seizures, requests, fines, activity, notifications, unread] = await Promise.all([
+    const [employeeCounts, wanted, cases, seizures, requests, fines, activity, notifications, unread] = await Promise.all([
       can(PERMISSIONS.personnelView)
         ? prisma.employee.groupBy({ by: ['status'], where: { archivedAt: null }, _count: { _all: true } })
         : Promise.resolve(null),
       can(PERMISSIONS.wantedView)
-        ? prisma.wantedNotice.findMany({ where: { status: 'active' }, orderBy: { postedAt: 'desc' }, take: 6, select: { id: true, caseNumber: true, firstName: true, lastName: true, wantedLevel: true, postedAt: true } })
+        ? prisma.wantedNotice.findMany({
+            where: { status: 'active' },
+            orderBy: { postedAt: 'desc' },
+            take: 6,
+            select: {
+              id: true,
+              caseNumber: true,
+              firstName: true,
+              lastName: true,
+              wantedLevel: true,
+              postedAt: true,
+              photoUrl: true,
+              photoData: true,
+              citizen: { select: { photoUrl: true, photoData: true } },
+            },
+          })
+        : Promise.resolve(null),
+      can(PERMISSIONS.casesView)
+        ? prisma.caseFile.findMany({
+            orderBy: { openedAt: 'desc' },
+            take: 6,
+            select: { id: true, caseNumber: true, title: true, status: true, suspectFirstName: true, suspectLastName: true },
+          })
         : Promise.resolve(null),
       can(PERMISSIONS.seizureView)
         ? prisma.seizure.findMany({ orderBy: { seizedAt: 'desc' }, take: 5, select: { id: true, caseNumber: true, suspectFirstName: true, suspectLastName: true, seizedAt: true, propertyStatus: true } })
         : Promise.resolve(null),
-      can(PERMISSIONS.requestsReview)
-        ? prisma.equipmentRequest.findMany({ where: { status: 'pending' }, orderBy: { createdAt: 'desc' }, take: 6 })
-        : actor.employeeId
-          ? prisma.equipmentRequest.findMany({ where: { employeeId: actor.employeeId }, orderBy: { createdAt: 'desc' }, take: 6 })
-          : Promise.resolve([]),
+      can(PERMISSIONS.requestsCreate)
+        ? prisma.equipmentRequest.findMany({
+            where: can(PERMISSIONS.requestsReview) ? {} : { status: 'registered' },
+            orderBy: { createdAt: 'desc' },
+            take: 6,
+            select: { id: true, requestNumber: true, requesterName: true, itemName: true, serialNumber: true, quantity: true, status: true },
+          })
+        : Promise.resolve([]),
       can(PERMISSIONS.finesView)
         ? prisma.fine.findMany({ orderBy: { issuedAt: 'desc' }, take: 6, select: { id: true, fineNumber: true, offenderFirstName: true, offenderLastName: true, amountCents: true, paymentStatus: true, issuedAt: true } })
         : Promise.resolve(null),
@@ -44,7 +69,16 @@ metaRouter.get(
     res.json({
       generatedAt: new Date().toISOString(),
       employees: employeeCounts ? { active: count('active'), suspended: count('suspended'), onLeave: count('on_leave') } : null,
-      wanted,
+      wanted: wanted?.map((row) => ({
+        id: row.id,
+        caseNumber: row.caseNumber,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        wantedLevel: row.wantedLevel,
+        postedAt: row.postedAt,
+        photo: row.citizen?.photoData || row.citizen?.photoUrl || row.photoData || row.photoUrl || '',
+      })) ?? null,
+      cases,
       seizures,
       requests,
       fines,
@@ -61,7 +95,7 @@ metaRouter.get(
     const actor = actorOf(req)
     const query = parseQuery<{ q: string }>(searchSchema, req.query)
     const q = query.q
-    const [employees, citizens, wanted, fines, seizures, laws] = await Promise.all([
+    const [employees, citizens, wanted, fines, seizures, cases, laws] = await Promise.all([
       actor.permissions.has(PERMISSIONS.personnelView)
         ? prisma.employee.findMany({
             where: {
@@ -111,6 +145,20 @@ metaRouter.get(
             select: { id: true, caseNumber: true, suspectFirstName: true, suspectLastName: true },
           })
         : Promise.resolve([]),
+      actor.permissions.has(PERMISSIONS.casesView)
+        ? prisma.caseFile.findMany({
+            where: {
+              OR: [
+                { caseNumber: { contains: q, mode: 'insensitive' } },
+                { title: { contains: q, mode: 'insensitive' } },
+                { suspectLastName: { contains: q, mode: 'insensitive' } },
+                { suspectFirstName: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            take: 8,
+            select: { id: true, caseNumber: true, title: true, status: true },
+          })
+        : Promise.resolve([]),
       actor.permissions.has(PERMISSIONS.lawsView)
         ? prisma.law.findMany({
             where: { OR: [{ articleNumber: { contains: q, mode: 'insensitive' } }, { title: { contains: q, mode: 'insensitive' } }] },
@@ -119,7 +167,7 @@ metaRouter.get(
           })
         : Promise.resolve([]),
     ])
-    res.json({ employees, citizens, wanted, fines, seizures, laws })
+    res.json({ employees, citizens, wanted, fines, seizures, cases, laws })
   }),
 )
 

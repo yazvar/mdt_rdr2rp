@@ -4,6 +4,7 @@ import { AccountingPage } from './pages/Accounting'
 import { AdminPage } from './pages/Admin'
 import { ArmoryPage } from './pages/Armory'
 import { AuditPage } from './pages/Audit'
+import { CasesPage } from './pages/Cases'
 import { CitizensPage } from './pages/Citizens'
 import { DashboardPage } from './pages/Dashboard'
 import { EmployeesPage } from './pages/Employees'
@@ -36,6 +37,7 @@ function Pages() {
         <Route path="/citizens" element={<CitizensPage />} />
         <Route path="/armory" element={<ArmoryPage />} />
         <Route path="/losses" element={<LossesPage />} />
+        <Route path="/cases" element={<CasesPage />} />
         <Route path="/seizures" element={<SeizuresPage />} />
         <Route path="/laws" element={<LawsPage />} />
         <Route path="/wanted" element={<WantedPage />} />

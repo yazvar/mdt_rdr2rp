@@ -7,9 +7,9 @@ export async function linkedCitizen(
   names: { firstName: string; lastName: string },
 ) {
   if (!citizenId) {
-    return { citizenId: null as string | null, firstName: names.firstName, lastName: names.lastName, photoData: '' }
+    return { citizenId: null as string | null, firstName: names.firstName, lastName: names.lastName, photoData: '', photoUrl: '' }
   }
   const citizen = await tx.citizen.findFirst({ where: { id: citizenId, archivedAt: null } })
   if (!citizen) throw new HttpError(400, 'CITIZEN', 'Гражданин не найден в картотеке. Впишите имя вручную.')
-  return { citizenId: citizen.id, firstName: citizen.firstName, lastName: citizen.lastName, photoData: citizen.photoData }
+  return { citizenId: citizen.id, firstName: citizen.firstName, lastName: citizen.lastName, photoData: citizen.photoData, photoUrl: citizen.photoUrl }
 }

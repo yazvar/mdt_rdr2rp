@@ -7,9 +7,10 @@ import { Status } from '../ui'
 
 interface Dashboard {
   employees: { active: number; suspended: number; onLeave: number } | null
-  wanted: { id: string; caseNumber: string; firstName: string; lastName: string; wantedLevel: number }[] | null
+  wanted: { id: string; caseNumber: string; firstName: string; lastName: string; wantedLevel: number; photo: string }[] | null
+  cases: { id: string; caseNumber: string; title: string; status: string; suspectFirstName: string; suspectLastName: string }[] | null
   seizures: { id: string; caseNumber: string; suspectFirstName: string; suspectLastName: string; propertyStatus: string }[] | null
-  requests: { id: string; requestNumber: string; requesterName: string; itemName: string; quantity: number; status: string }[]
+  requests: { id: string; requestNumber: string; requesterName: string; itemName: string; serialNumber: string | null; quantity: number; status: string }[]
   fines: { id: string; fineNumber: string; offenderFirstName: string; offenderLastName: string; amountCents: number; paymentStatus: string }[] | null
   activity: { id: string; actorName: string; action: string; module: string; createdAt: string }[]
   notifications: { id: string; title: string; body: string; createdAt: string; readAt: string | null }[]
@@ -22,6 +23,7 @@ const dot: Record<string, string> = {
   pending: 'amber',
   approved: 'green',
   issued: 'green',
+  registered: 'green',
   rejected: 'red',
   closed: 'blue',
   active: 'green',
@@ -72,7 +74,7 @@ export function DashboardPage() {
       </section>
       <section className="panel feed">
         <div className="panel-head">
-          <h2>Запросы <span className="count">{data?.requests.length ?? 0}</span></h2>
+          <h2>Реестр <span className="count">{data?.requests.length ?? 0}</span></h2>
           <button type="button" className="text-link" onClick={() => navigate('/requests')}>Все</button>
         </div>
         <div className="feed-list">
@@ -80,13 +82,13 @@ export function DashboardPage() {
             <button key={item.id} type="button" className="feed-row" onClick={() => navigate('/requests')}>
               <i className={`bullet ${dot[item.status] ?? 'blue'}`} />
               <span>
-                <strong>{item.requestNumber} {item.itemName}</strong>
-                <small>{item.requesterName} · × {item.quantity}</small>
+                <strong>{item.itemName}</strong>
+                <small>{item.requesterName}{item.serialNumber ? ` · ${item.serialNumber}` : ''}</small>
               </span>
               <Status code={item.status} />
             </button>
           ))}
-          {data && !data.requests.length && <div className="muted">Открытых запросов нет.</div>}
+          {data && !data.requests.length && <div className="muted">Реестр вооружения пуст.</div>}
         </div>
       </section>
       <section className="panel feed">
@@ -117,10 +119,19 @@ export function DashboardPage() {
       <section className="panel feed">
         <div className="panel-head">
           <h2>Последние дела</h2>
-          <button type="button" className="text-link" onClick={() => navigate('/seizures')}>Все</button>
+          <button type="button" className="text-link" onClick={() => navigate(data?.cases ? '/cases' : '/seizures')}>Все</button>
         </div>
         <div className="feed-list">
-          {data?.seizures?.slice(0, 4).map((item) => (
+          {data?.cases?.slice(0, 4).map((item) => (
+            <button key={item.id} type="button" className="feed-row" onClick={() => navigate(`/cases?open=${item.id}`)}>
+              <span>
+                <strong>{item.caseNumber}</strong>
+                <small>{item.title}</small>
+              </span>
+              <Status code={item.status} />
+            </button>
+          ))}
+          {!data?.cases?.length && data?.seizures?.slice(0, 4).map((item) => (
             <button key={item.id} type="button" className="feed-row" onClick={() => navigate(`/seizures?open=${item.id}`)}>
               <span>
                 <strong>{item.caseNumber}</strong>
@@ -138,7 +149,7 @@ export function DashboardPage() {
               <Status code={item.paymentStatus} />
             </button>
           ))}
-          {data && !data.seizures?.length && !data.fines?.length && <div className="muted">Дел пока нет.</div>}
+          {data && !data.cases?.length && !data.seizures?.length && !data.fines?.length && <div className="muted">Дел пока нет.</div>}
         </div>
       </section>
       <section className="panel">
@@ -150,7 +161,7 @@ export function DashboardPage() {
           {data?.wanted?.slice(0, 3).map((item) => (
             <button key={item.id} type="button" className="poster" onClick={() => navigate(`/wanted?open=${item.id}`)}>
               <b>WANTED</b>
-              <span className="poster-face">{item.lastName.slice(0, 1)}{item.firstName.slice(0, 1)}</span>
+              <span className="poster-face">{item.photo ? <img src={item.photo} alt="" /> : `${item.lastName.slice(0, 1)}${item.firstName.slice(0, 1)}`}</span>
               <strong>{item.lastName}</strong>
               <em>{item.firstName}</em>
               <small>уровень {item.wantedLevel}</small>

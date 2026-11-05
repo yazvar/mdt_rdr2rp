@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { can, useAuth } from '../auth'
-import { Portrait } from '../citizenPick'
+import { fitPhoto, Portrait } from '../citizenPick'
 import { Button, Empty, Field, Modal, Pager, useConfirm, useToast } from '../ui'
 
 interface Row {
@@ -21,10 +21,11 @@ interface Card extends Row {
   marks: string
   notes: string
   photoData: string
+  photoUrl: string
   version: number
 }
 
-const empty = { firstName: '', lastName: '', alias: '', occupation: '', residence: '', marks: '', notes: '', photoData: '' }
+const empty = { firstName: '', lastName: '', alias: '', occupation: '', residence: '', marks: '', notes: '', photoData: '', photoUrl: '' }
 
 export function CitizensPage() {
   const auth = useAuth()
@@ -62,17 +63,9 @@ export function CitizensPage() {
   })
   function readPhoto(file: File | undefined) {
     if (!file || !draft) return
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
-      toast.error('Нужна фотография PNG, JPEG или WebP.')
-      return
-    }
-    if (file.size > 380_000) {
-      toast.error('Фотография слишком большая.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => setDraft({ ...draft, photoData: String(reader.result || '') })
-    reader.readAsDataURL(file)
+    fitPhoto(file)
+      .then((photoData) => setDraft({ ...draft, photoData, photoUrl: '' }))
+      .catch((error: Error) => toast.error(error.message))
   }
   async function archive(card: Card) {
     const answer = await confirm({
@@ -119,12 +112,12 @@ export function CitizensPage() {
         <Modal title={editing ? 'Карточка гражданина' : 'Новый гражданин'} onClose={() => { setDraft(null); setEditing(null) }}>
           <form className="citizen-form" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
             <div className="portrait-wrap">
-              <Portrait photo={shown.photoData} name={`${shown.firstName} ${shown.lastName}`} />
+              <Portrait photo={shown.photoData || shown.photoUrl} name={`${shown.firstName} ${shown.lastName}`} />
               <label className="portrait-file">
-                Фотография
-                <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => readPhoto(event.target.files?.[0])} />
+                Файл фотографии
+                <input type="file" accept="image/*" onChange={(event) => readPhoto(event.target.files?.[0])} />
               </label>
-              {shown.photoData && <Button type="button" ghost onClick={() => setDraft({ ...shown, photoData: '' })}>Убрать фото</Button>}
+              {(shown.photoData || shown.photoUrl) && <Button type="button" ghost onClick={() => setDraft({ ...shown, photoData: '', photoUrl: '' })}>Убрать фото</Button>}
             </div>
             <div className="form-grid">
               <Field label="Имя"><input value={shown.firstName} onChange={(event) => setDraft({ ...shown, firstName: event.target.value })} required /></Field>
@@ -132,6 +125,7 @@ export function CitizensPage() {
               <Field label="Прозвище"><input value={shown.alias} onChange={(event) => setDraft({ ...shown, alias: event.target.value })} /></Field>
               <Field label="Занятие"><input value={shown.occupation} onChange={(event) => setDraft({ ...shown, occupation: event.target.value })} /></Field>
               <Field label="Где живёт" wide><input value={shown.residence} onChange={(event) => setDraft({ ...shown, residence: event.target.value })} /></Field>
+              <Field label="Ссылка на фото" wide><input value={shown.photoUrl} placeholder="https://" onChange={(event) => setDraft({ ...shown, photoUrl: event.target.value, photoData: event.target.value.trim() ? '' : shown.photoData })} /></Field>
               <Field label="Приметы" wide><textarea value={shown.marks} onChange={(event) => setDraft({ ...shown, marks: event.target.value })} /></Field>
               <Field label="Заметки" wide><textarea value={shown.notes} onChange={(event) => setDraft({ ...shown, notes: event.target.value })} /></Field>
               <div className="wide"><Button disabled={!auth.online || save.isPending}>Сохранить</Button></div>
@@ -142,7 +136,7 @@ export function CitizensPage() {
       {detail.data && !draft && (
         <Modal title={`${detail.data.lastName} ${detail.data.firstName}`} onClose={() => setParams({})}>
           <div className="citizen-view">
-            <Portrait photo={detail.data.photoData} name={`${detail.data.firstName} ${detail.data.lastName}`} />
+            <Portrait photo={detail.data.photoData || detail.data.photoUrl} name={`${detail.data.firstName} ${detail.data.lastName}`} />
             <div>
               {detail.data.alias && <p>Прозвище: {detail.data.alias}</p>}
               {detail.data.occupation && <p>Занятие: {detail.data.occupation}</p>}
@@ -152,7 +146,7 @@ export function CitizensPage() {
               {!detail.data.alias && !detail.data.occupation && !detail.data.residence && !detail.data.marks && !detail.data.notes && <p className="muted">Кроме имени, в карточке пока ничего нет.</p>}
               {write && (
                 <div className="row" style={{ marginTop: 12 }}>
-                  <Button onClick={() => { setEditing(detail.data); setDraft({ firstName: detail.data.firstName, lastName: detail.data.lastName, alias: detail.data.alias, occupation: detail.data.occupation, residence: detail.data.residence, marks: detail.data.marks, notes: detail.data.notes, photoData: detail.data.photoData }) }}>Изменить</Button>
+                  <Button onClick={() => { setEditing(detail.data); setDraft({ firstName: detail.data.firstName, lastName: detail.data.lastName, alias: detail.data.alias, occupation: detail.data.occupation, residence: detail.data.residence, marks: detail.data.marks, notes: detail.data.notes, photoData: detail.data.photoData, photoUrl: detail.data.photoUrl }) }}>Изменить</Button>
                   <Button ghost onClick={() => archive(detail.data)}>{detail.data.archivedAt ? 'Вернуть' : 'В архив'}</Button>
                 </div>
               )}

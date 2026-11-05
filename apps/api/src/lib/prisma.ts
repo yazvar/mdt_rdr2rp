@@ -52,6 +52,8 @@ export function uniqueMessage(error: unknown): string | null {
   if (target.includes('badgeNumber')) return 'Табельный номер уже используется.'
   if (target.includes('discordId')) return 'Этот Discord ID уже привязан.'
   if (target.includes('articleNumber')) return 'Номер статьи уже существует.'
+  if (target.includes('fineNumber')) return 'Такой номер штрафа уже записан.'
+  if (target.includes('caseNumber')) return 'Такой номер уже занят.'
   if (target.includes('sourceKey')) return 'Эта финансовая операция уже проведена.'
   return 'Такая запись уже существует.'
 }

@@ -66,6 +66,7 @@ export async function ensureCatalog(): Promise<void> {
     await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: {} })
   }
   await grantCitizenAccess()
+  await grantCaseAccess()
 }
 
 async function grantCitizenAccess(): Promise<void> {
@@ -86,6 +87,26 @@ async function grantCitizenAccess(): Promise<void> {
     if (add.length) await prisma.rolePermission.createMany({ data: add, skipDuplicates: true })
   }
   await prisma.appSetting.create({ data: { key: 'citizens.accessGranted', value: true } })
+}
+
+async function grantCaseAccess(): Promise<void> {
+  const done = await prisma.appSetting.findUnique({ where: { key: 'cases.accessGranted' } })
+  if (done) return
+  const rows = await prisma.permission.findMany({ where: { key: { in: ['cases.view', 'cases.manage'] } } })
+  const viewId = rows.find((row) => row.key === 'cases.view')?.id
+  const manageId = rows.find((row) => row.key === 'cases.manage')?.id
+  if (!viewId || !manageId) return
+  const roles = await prisma.role.findMany({ include: { permissions: { include: { permission: true } } } })
+  for (const role of roles) {
+    const keys = new Set(role.permissions.map((item) => item.permission.key))
+    const add: { roleId: string; permissionId: string }[] = []
+    const canFile = ['seizure.manage', 'fines.issue', 'fines.manage', 'wanted.create', 'wanted.manage', 'personnel.manage'].some((key) => keys.has(key))
+    const canSee = canFile || ['seizure.view', 'wanted.view', 'fines.view', 'personnel.view'].some((key) => keys.has(key))
+    if (canSee && !keys.has('cases.view')) add.push({ roleId: role.id, permissionId: viewId })
+    if (canFile && !keys.has('cases.manage')) add.push({ roleId: role.id, permissionId: manageId })
+    if (add.length) await prisma.rolePermission.createMany({ data: add, skipDuplicates: true })
+  }
+  await prisma.appSetting.create({ data: { key: 'cases.accessGranted', value: true } })
 }
 
 const CODE_FLAG = 'laws.code.hate1899'

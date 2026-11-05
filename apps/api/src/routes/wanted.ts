@@ -90,7 +90,7 @@ wantedRouter.post(
           firstName: person.firstName,
           lastName: person.lastName,
           citizenId: person.citizenId,
-          photoUrl: body.photoUrl,
+          photoUrl: body.photoUrl || person.photoUrl,
           photoData: body.photoData || person.photoData,
           postedAt: body.postedAt ? new Date(body.postedAt) : new Date(),
           grounds: body.grounds,

@@ -98,7 +98,7 @@ finesRouter.post(
         const officer = actor.employeeId ? await tx.employee.findUnique({ where: { id: actor.employeeId } }) : null
         const fine = await tx.fine.create({
           data: {
-            fineNumber: await nextNumber(tx, 'fine', 'FN'),
+            fineNumber: body.fineNumber || await nextNumber(tx, 'fine', 'FN'),
             offenderFirstName: person.firstName,
             offenderLastName: person.lastName,
             citizenId: person.citizenId,

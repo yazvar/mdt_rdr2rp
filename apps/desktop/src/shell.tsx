@@ -13,10 +13,11 @@ const links = [
   { to: '/laws', label: 'Законы', perm: 'laws.view', icon: 'M6 5h9a3 3 0 0 1 3 3v11H9a3 3 0 0 0-3 3zM6 5v14' },
   { to: '/wanted', label: 'Розыск', perm: 'wanted.view', icon: 'M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11zM12 11.2a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z' },
   { to: '/fines', label: 'Штрафы', perm: 'fines.view', icon: 'M7 4h10v16l-2.2-1.4L12.5 20l-2.3-1.4L8 20l-1-16zM9 8h6M9 12h6' },
+  { to: '/cases', label: 'Дела', perm: 'cases.view', icon: 'M7 3h7l5 5v13H7zM14 3v5h5' },
   { to: '/seizures', label: 'Конфискат', perm: 'seizure.view', icon: 'M4 8h16v11H4zM8 8V6a4 4 0 0 1 8 0v2' },
   { to: '/armory', label: 'Оружие', perm: 'armory.view_own', icon: 'M12 3 5 6v6c0 4.2 2.8 7.2 7 9 4.2-1.8 7-4.8 7-9V6z' },
   { to: '/losses', label: 'Утери', perm: 'loss.view_own', icon: 'M12 4 4 8l8 4 8-4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4' },
-  { to: '/requests', label: 'Запросы', perm: 'requests.create', icon: 'M5 6h14v12H5zM5 10h14M9 6V4h6v2' },
+  { to: '/requests', label: 'Реестр', perm: 'requests.create', icon: 'M5 6h14v12H5zM5 10h14M9 6V4h6v2' },
   { to: '/accounting', label: 'Казна', perm: 'accounting.view', icon: 'M12 4v16M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.8 0-4.5 1.3-4.5 3S9.2 11.5 12 11.5s4.5 1.2 4.5 3-1.7 3-4.5 3c-2.1 0-3.7-.8-4.5-2' },
   { to: '/audit', label: 'Журнал', perm: 'audit.view', icon: 'M8 6h11M8 12h11M8 18h11M5 6h.01M5 12h.01M5 18h.01' },
   { to: '/admin', label: 'Настройки', perm: 'admin.access', icon: 'M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM12 3.5v2.2M12 18.3v2.2M4.8 6.2l1.6 1.6M17.6 16.2l1.6 1.6M3.5 12h2.2M18.3 12h2.2M4.8 17.8l1.6-1.6M17.6 7.8l1.6-1.6' },
@@ -50,7 +51,7 @@ export function Shell(props: { children: React.ReactNode }) {
   useEffect(() => {
     if (q.trim().length < 2) { setHits([]); return }
     const timer = setTimeout(() => {
-      api<{ employees: { id: string; firstName: string; lastName: string; badgeNumber: string }[]; citizens?: { id: string; firstName: string; lastName: string; alias: string }[]; wanted: { id: string; caseNumber: string; firstName: string; lastName: string }[]; fines: { id: string; fineNumber: string; offenderFirstName: string; offenderLastName: string }[]; seizures: { id: string; caseNumber: string; suspectFirstName: string; suspectLastName: string }[]; laws: { id: string; articleNumber: string; title: string }[] }>(`/api/search?q=${encodeURIComponent(q.trim())}`)
+      api<{ employees: { id: string; firstName: string; lastName: string; badgeNumber: string }[]; citizens?: { id: string; firstName: string; lastName: string; alias: string }[]; wanted: { id: string; caseNumber: string; firstName: string; lastName: string }[]; fines: { id: string; fineNumber: string; offenderFirstName: string; offenderLastName: string }[]; seizures: { id: string; caseNumber: string; suspectFirstName: string; suspectLastName: string }[]; cases?: { id: string; caseNumber: string; title: string }[]; laws: { id: string; articleNumber: string; title: string }[] }>(`/api/search?q=${encodeURIComponent(q.trim())}`)
         .then((result) => {
           const next: SearchHit[] = [
             ...(result.citizens ?? []).map((item) => ({ id: item.id, label: `${item.lastName} ${item.firstName}`, hint: item.alias ? `Гражданин · ${item.alias}` : 'Гражданин', to: `/citizens?open=${item.id}` })),
@@ -58,6 +59,7 @@ export function Shell(props: { children: React.ReactNode }) {
             ...result.wanted.map((item) => ({ id: item.id, label: `${item.lastName} ${item.firstName}`, hint: item.caseNumber, to: `/wanted?open=${item.id}` })),
             ...result.fines.map((item) => ({ id: item.id, label: `${item.offenderLastName} ${item.offenderFirstName}`, hint: item.fineNumber, to: `/fines?open=${item.id}` })),
             ...result.seizures.map((item) => ({ id: item.id, label: `${item.suspectLastName} ${item.suspectFirstName}`, hint: item.caseNumber, to: `/seizures?open=${item.id}` })),
+            ...(result.cases ?? []).map((item) => ({ id: item.id, label: item.title, hint: `Дело · ${item.caseNumber}`, to: `/cases?open=${item.id}` })),
             ...result.laws.map((item) => ({ id: item.id, label: item.title, hint: item.articleNumber, to: `/laws?open=${item.id}` })),
           ]
           setHits(next)

@@ -9,9 +9,9 @@ import { actorOf, requirePermission } from '../middleware/auth'
 
 export const citizensRouter = Router()
 
-function present<T extends { photoData: string }>(row: T, withPhoto: boolean) {
+function present<T extends { photoData: string; photoUrl: string }>(row: T, withPhoto: boolean) {
   const { photoData, ...rest } = row
-  return withPhoto ? { ...rest, photoData } : { ...rest, hasPhoto: Boolean(photoData) }
+  return withPhoto ? { ...rest, photoData } : { ...rest, hasPhoto: Boolean(photoData || row.photoUrl) }
 }
 
 citizensRouter.get(
@@ -92,6 +92,7 @@ citizensRouter.patch(
           marks: body.marks,
           notes: body.notes,
           photoData: body.photoData,
+          photoUrl: body.photoUrl,
           version: { increment: 1 },
         },
       })

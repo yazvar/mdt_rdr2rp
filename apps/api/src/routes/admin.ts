@@ -55,12 +55,13 @@ adminRouter.use(requireAdmin)
 adminRouter.get(
   '/summary',
   action(async (_req, res) => {
-    const [users, employees, issues, losses, seizures, laws, wanted, fines, requests, entries, errors] = await Promise.all([
+    const [users, employees, issues, losses, seizures, cases, laws, wanted, fines, requests, entries, errors] = await Promise.all([
       prisma.user.count(),
       prisma.employee.count(),
       prisma.equipmentIssue.count(),
       prisma.lossRecord.count(),
       prisma.seizure.count(),
+      prisma.caseFile.count(),
       prisma.law.count(),
       prisma.wantedNotice.count(),
       prisma.fine.count(),
@@ -68,7 +69,7 @@ adminRouter.get(
       prisma.financeEntry.count(),
       prisma.systemError.count(),
     ])
-    res.json({ users, employees, issues, losses, seizures, laws, wanted, fines, requests, entries, errors })
+    res.json({ users, employees, issues, losses, seizures, cases, laws, wanted, fines, requests, entries, errors })
   }),
 )
 

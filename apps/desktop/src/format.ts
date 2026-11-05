@@ -30,6 +30,7 @@ const labels: Record<string, string> = {
   dismissed: 'Уволен',
   on_leave: 'В отпуске',
   issued: 'Выдано',
+  registered: 'В реестре',
   returned: 'Возвращено',
   lost: 'Утеряно',
   written_off: 'Списано',
@@ -62,7 +63,7 @@ export function statusText(code?: string | null): string {
 
 export function statusTone(code?: string | null): string {
   if (!code) return ''
-  if (['active', 'paid', 'issued', 'approved', 'served', 'found', 'returned'].includes(code)) return 'ok'
+  if (['active', 'paid', 'issued', 'approved', 'served', 'found', 'returned', 'registered'].includes(code)) return 'ok'
   if (['pending', 'partial', 'on_leave', 'suspended', 'held', 'investigating', 'detained', 'amended', 'open', 'stored'].includes(code)) return 'warn'
   if (['dismissed', 'cancelled', 'rejected', 'lost', 'written_off', 'repealed', 'closed'].includes(code)) return 'danger'
   return ''
@@ -96,7 +97,10 @@ const actions: Record<string, string> = {
   'fine.cancel': 'Штраф отменён',
   'fine.sentence': 'Изменён статус наказания',
   'fine.payment': 'Записана оплата штрафа',
-  'request.create': 'Создан запрос снаряжения',
+  'case.create': 'Заведено дело',
+  'case.update': 'Изменено дело',
+  'case.link': 'Конфискат связан с делом',
+  'request.create': 'Вооружение внесено в реестр',
   'request.review': 'Рассмотрен запрос',
   'request.issue': 'Снаряжение выдано по запросу',
   'finance.create': 'Проведена операция',
@@ -125,7 +129,8 @@ const modules: Record<string, string> = {
   laws: 'Законы',
   wanted: 'Розыск',
   fines: 'Штрафы',
-  requests: 'Запросы',
+  cases: 'Дела',
+  requests: 'Реестр вооружения',
   accounting: 'Казна',
   access: 'Доступ',
   admin: 'Администрация',

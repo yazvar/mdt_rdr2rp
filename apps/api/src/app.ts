@@ -10,6 +10,7 @@ import { adminRouter, ranksRouter } from './routes/admin'
 import { armoryRouter } from './routes/armory'
 import { auditRouter } from './routes/audit'
 import { authRouter } from './routes/auth'
+import { casesRouter } from './routes/cases'
 import { citizensRouter } from './routes/citizens'
 import { employeesRouter } from './routes/employees'
 import { finesRouter } from './routes/fines'
@@ -67,6 +68,7 @@ export function createApp() {
   app.use('/api/citizens', citizensRouter)
   app.use('/api/armory', armoryRouter)
   app.use('/api/losses', lossesRouter)
+  app.use('/api/cases', casesRouter)
   app.use('/api/seizures', seizuresRouter)
   app.use('/api/laws', lawsRouter)
   app.use('/api/wanted', wantedRouter)

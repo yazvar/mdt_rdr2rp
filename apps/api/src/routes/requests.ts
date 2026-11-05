@@ -13,7 +13,7 @@ import { audit, changed } from '../lib/audit'
 import { conflict, HttpError, action } from '../lib/http'
 import { beginIdempotency, finishIdempotency, savedIdempotent } from '../lib/idempotency'
 import { nextNumber } from '../lib/numbers'
-import { audience, enqueueNotice } from '../lib/notify'
+import { enqueueNotice } from '../lib/notify'
 import { isUniqueViolation, prisma, run } from '../lib/prisma'
 import { paging, parseBody, parseQuery } from '../lib/validate'
 import { actorOf, requirePermission } from '../middleware/auth'
@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Отклонён',
   issued: 'Выдано',
   closed: 'Закрыт',
+  registered: 'В реестре',
 }
 
 requestsRouter.get(
@@ -36,22 +37,23 @@ requestsRouter.get(
     const actor = actorOf(req)
     const query = parseQuery<{ page: number; pageSize: number; q: string; dir: 'asc' | 'desc'; status: string }>(recordListSchema, req.query)
     const where: Prisma.EquipmentRequestWhereInput = {}
+    const and: Prisma.EquipmentRequestWhereInput[] = []
     if (!actor.permissions.has(PERMISSIONS.requestsReview)) {
-      if (!actor.employeeId) {
-        res.json({ items: [], page: query.page, pageSize: query.pageSize, total: 0 })
-        return
-      }
-      where.employeeId = actor.employeeId
+      and.push({ OR: actor.employeeId ? [{ status: 'registered' }, { employeeId: actor.employeeId }] : [{ status: 'registered' }] })
     }
     if (query.status) where.status = query.status as Prisma.EquipmentRequestWhereInput['status']
     if (query.q) {
-      where.OR = [
-        { requestNumber: { contains: query.q, mode: 'insensitive' } },
-        { requesterName: { contains: query.q, mode: 'insensitive' } },
-        { badgeNumber: { contains: query.q, mode: 'insensitive' } },
-        { itemName: { contains: query.q, mode: 'insensitive' } },
-      ]
+      and.push({
+        OR: [
+          { requestNumber: { contains: query.q, mode: 'insensitive' } },
+          { requesterName: { contains: query.q, mode: 'insensitive' } },
+          { badgeNumber: { contains: query.q, mode: 'insensitive' } },
+          { itemName: { contains: query.q, mode: 'insensitive' } },
+          { serialNumber: { contains: query.q, mode: 'insensitive' } },
+        ],
+      })
     }
+    if (and.length) where.AND = and
     const [total, items] = await Promise.all([
       prisma.equipmentRequest.count({ where }),
       prisma.equipmentRequest.findMany({ where, orderBy: { createdAt: 'desc' }, ...paging(query) }),
@@ -69,9 +71,9 @@ requestsRouter.get(
       where: { id: req.params.id },
       include: { events: { orderBy: { createdAt: 'desc' } }, issue: true },
     })
-    if (!request) throw new HttpError(404, 'NOT_FOUND', 'Запрос не найден.')
-    if (!actor.permissions.has(PERMISSIONS.requestsReview) && request.employeeId !== actor.employeeId) {
-      throw new HttpError(404, 'NOT_FOUND', 'Запрос не найден.')
+    if (!request) throw new HttpError(404, 'NOT_FOUND', 'Запись реестра не найдена.')
+    if (!actor.permissions.has(PERMISSIONS.requestsReview) && request.employeeId !== actor.employeeId && request.status !== 'registered') {
+      throw new HttpError(404, 'NOT_FOUND', 'Запись реестра не найдена.')
     }
     res.json(request)
   }),
@@ -86,7 +88,7 @@ requestsRouter.post(
     const employeeId = actor.permissions.has(PERMISSIONS.requestsReview) && body.employeeId ? body.employeeId : actor.employeeId
     if (!employeeId) throw new HttpError(400, 'EMPLOYEE', 'К учётной записи не привязана карточка сотрудника.')
     const created = await run(async (tx, effects) => {
-      const employee = await tx.employee.findUnique({ where: { id: employeeId }, include: { user: true } })
+      const employee = await tx.employee.findUnique({ where: { id: employeeId } })
       if (!employee || employee.archivedAt) throw new HttpError(400, 'EMPLOYEE', 'Сотрудник не найден.')
       if (body.inventoryItemId) {
         const item = await tx.inventoryItem.findUnique({ where: { id: body.inventoryItemId } })
@@ -94,42 +96,22 @@ requestsRouter.post(
       }
       const request = await tx.equipmentRequest.create({
         data: {
-          requestNumber: await nextNumber(tx, 'request', 'EQ'),
+          requestNumber: await nextNumber(tx, 'request', 'WR'),
           employeeId: employee.id,
           requesterName: `${employee.firstName} ${employee.lastName}`,
           badgeNumber: employee.badgeNumber,
           itemName: body.itemName,
+          serialNumber: body.serialNumber,
           inventoryItemId: body.inventoryItemId,
           quantity: body.quantity,
-          reason: body.reason,
+          reason: body.reason || 'Регистрация вооружения',
           comment: body.comment,
-          events: { create: { type: 'created', toStatus: 'pending', actorId: actor.userId, actorName: actor.name } },
+          status: 'registered',
+          events: { create: { type: 'registered', toStatus: 'registered', actorId: actor.userId, actorName: actor.name } },
         },
       })
-      const listeners = await audience(PERMISSIONS.requestsReview)
-      await enqueueNotice(tx, effects, {
-        dedupeKey: `equipment_request.created:${request.id}`,
-        kind: 'equipment_request.created',
-        title: 'Новый запрос снаряжения',
-        body: `${request.requesterName}, табельный ${request.badgeNumber}: ${request.itemName} × ${request.quantity}. ${request.reason}`,
-        discordTitle: 'SHERIFF DEPARTMENT — NEW EQUIPMENT REQUEST',
-        discordBody: 'Open MDT to review this request.',
-        module: 'requests',
-        recordId: request.id,
-        userIds: listeners.userIds,
-        discordIds: listeners.discordIds,
-        fields: {
-          Deputy: request.requesterName,
-          'Badge Number': request.badgeNumber,
-          'Requested Item': request.itemName,
-          Quantity: request.quantity,
-          Reason: request.reason,
-          'Request ID': `#${request.requestNumber}`,
-          Status: 'Pending Review',
-        },
-      })
-      await audit(tx, actor, { action: 'request.create', module: 'requests', recordId: request.id, newValues: { requestNumber: request.requestNumber, quantity: request.quantity } })
-      await changed(tx, effects, { module: 'requests', action: 'request.create', recordId: request.id, permission: PERMISSIONS.requestsReview, employeeId: employee.id })
+      await audit(tx, actor, { action: 'request.create', module: 'requests', recordId: request.id, newValues: { requestNumber: request.requestNumber, itemName: request.itemName, serialNumber: request.serialNumber, quantity: request.quantity } })
+      await changed(tx, effects, { module: 'requests', action: 'request.create', recordId: request.id, permission: PERMISSIONS.requestsCreate, employeeId: employee.id })
       return request
     })
     res.status(201).json(created)

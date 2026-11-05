@@ -40,6 +40,7 @@ const TABLE_KEYS = [
   'fine',
   'fineCharge',
   'fineEvent',
+  'caseFile',
   'seizure',
   'seizureItem',
   'seizureEvent',
@@ -91,6 +92,7 @@ export async function exportBackup() {
     fine: await prisma.fine.findMany(),
     fineCharge: await prisma.fineCharge.findMany(),
     fineEvent: await prisma.fineEvent.findMany(),
+    caseFile: await prisma.caseFile.findMany(),
     seizure: await prisma.seizure.findMany(),
     seizureItem: await prisma.seizureItem.findMany(),
     seizureEvent: await prisma.seizureEvent.findMany(),
@@ -202,6 +204,7 @@ async function wipe(tx: Tx): Promise<void> {
   await tx.seizureEvent.deleteMany()
   await tx.seizureItem.deleteMany()
   await tx.seizure.deleteMany()
+  await tx.caseFile.deleteMany()
   await tx.citizen.deleteMany()
   await tx.lossAction.deleteMany()
   await tx.lossRecord.deleteMany()
@@ -257,6 +260,7 @@ async function insert(tx: Tx, key: (typeof TABLE_KEYS)[number], rows: unknown[])
     fine: () => tx.fine.createMany({ data }),
     fineCharge: () => tx.fineCharge.createMany({ data }),
     fineEvent: () => tx.fineEvent.createMany({ data }),
+    caseFile: () => tx.caseFile.createMany({ data }),
     seizure: () => tx.seizure.createMany({ data }),
     seizureItem: () => tx.seizureItem.createMany({ data }),
     seizureEvent: () => tx.seizureEvent.createMany({ data }),

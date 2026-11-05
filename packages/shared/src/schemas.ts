@@ -74,6 +74,22 @@ export const reasonSchema = z
   })
   .strict()
 
+const photoLink = z
+  .string()
+  .trim()
+  .max(500)
+  .optional()
+  .default('')
+  .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), 'Ссылка на фотографию должна начинаться с http:// или https://')
+
+const gameFineNumber = z
+  .string()
+  .trim()
+  .max(40, 'Номер штрафа слишком длинный')
+  .optional()
+  .default('')
+  .refine((value) => value === '' || /^[0-9A-Za-zА-Яа-яЁё#\-_./]+$/.test(value), 'В номере штрафа допустимы буквы, цифры и знаки # - _ . /')
+
 export const citizenCreateSchema = z
   .object({
     firstName: z.string().trim().min(1, 'Укажите имя').max(80),
@@ -84,6 +100,7 @@ export const citizenCreateSchema = z
     marks: optionalText(2000),
     notes: optionalText(5000),
     photoData: z.string().max(550_000).optional().default(''),
+    photoUrl: photoLink,
   })
   .strict()
 
@@ -184,6 +201,7 @@ export const seizureCreateSchema = z
     notes: optionalText(5000),
     items: z.array(seizureItemSchema).min(1, 'Добавьте хотя бы один предмет').max(50),
     citizenId: citizenLink,
+    caseId: citizenLink,
   })
   .strict()
 
@@ -273,6 +291,7 @@ export const fineCreateSchema = z
     charges: z.array(chargeChoiceSchema).max(30).optional().default([]),
     adjustmentCents: z.number().int().min(0).optional().nullable(),
     adjustmentReason: z.string().trim().max(500).optional().default(''),
+    fineNumber: gameFineNumber,
     wantedId: z.string().trim().optional().nullable(),
     citizenId: citizenLink,
     idempotencyKey: z.string().trim().min(8).max(80).optional(),
@@ -295,10 +314,11 @@ export const finePaymentSchema = z
 
 export const requestCreateSchema = z
   .object({
-    itemName: z.string().trim().min(1).max(120),
+    itemName: z.string().trim().min(1, 'Укажите оружие').max(120),
+    serialNumber: z.string().trim().max(80).optional().nullable().transform((value) => value || null),
     inventoryItemId: z.string().trim().optional().nullable(),
     quantity: z.number().int().positive().max(100_000),
-    reason: z.string().trim().min(3).max(2000),
+    reason: optionalText(2000),
     comment: optionalText(2000),
     employeeId: z.string().trim().optional(),
   })
@@ -325,6 +345,35 @@ export const requestIssueSchema = z
     serialNumber: z.string().trim().max(80).optional().nullable().transform((value) => value || null),
     notes: optionalText(500),
     idempotencyKey: z.string().trim().min(8).max(80).optional(),
+  })
+  .strict()
+
+export const caseCreateSchema = z
+  .object({
+    title: z.string().trim().min(1, 'Укажите название дела').max(160),
+    narrative: z.string().trim().min(3, 'Опишите обстоятельства дела').max(20000),
+    location: optionalText(200),
+    openedAt: z.string().datetime().optional(),
+    citizenId: citizenLink,
+  })
+  .strict()
+
+export const caseUpdateSchema = z
+  .object({
+    version: z.number().int().positive(),
+    title: z.string().trim().min(1).max(160).optional(),
+    narrative: z.string().trim().min(3).max(20000).optional(),
+    location: z.string().trim().max(200).optional(),
+    status: z.enum(['open', 'closed']).optional(),
+    closeReason: z.string().trim().max(500).optional().default(''),
+    reason: z.string().trim().max(500).optional().default(''),
+  })
+  .strict()
+
+export const caseLinkSchema = z
+  .object({
+    seizureId: z.string().trim().min(1),
+    unlink: z.boolean().optional().default(false),
   })
   .strict()
 

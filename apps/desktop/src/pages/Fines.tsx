@@ -25,7 +25,7 @@ export function FinesPage() {
   const [q, setQ] = useState('')
   const [creating, setCreating] = useState(false)
   const [printDoc, setPrintDoc] = useState<Record<string, unknown> | null>(null)
-  const [form, setForm] = useState({ citizenId: '', offenderFirstName: '', offenderLastName: '', description: '', charges: [] as ChargeChoice[], adjustment: '', adjustmentReason: '', wantedId: '' })
+  const [form, setForm] = useState({ fineNumber: '', citizenId: '', offenderFirstName: '', offenderLastName: '', description: '', charges: [] as ChargeChoice[], adjustment: '', adjustmentReason: '', wantedId: '' })
   const open = params.get('open')
   const list = useQuery({ queryKey: ['fines', page, q], queryFn: () => api<{ items: Fine[]; total: number; pageSize: number }>(`/api/fines?page=${page}&q=${encodeURIComponent(q)}`) })
   const detail = useQuery({ queryKey: ['fine', open], enabled: Boolean(open), queryFn: () => api<Fine>(`/api/fines/${open}`) })
@@ -41,7 +41,7 @@ export function FinesPage() {
     mutationFn: () => {
       const cents = form.adjustment ? parseMoneyToCents(form.adjustment) : null
       if (form.adjustment && cents === null) throw new Error('Укажите сумму числом.')
-      return api('/api/fines', { method: 'POST', body: JSON.stringify({ offenderFirstName: form.offenderFirstName, offenderLastName: form.offenderLastName, description: form.description, charges: form.charges, adjustmentCents: cents, adjustmentReason: form.adjustmentReason, wantedId: form.wantedId || null, citizenId: form.citizenId || null, idempotencyKey: crypto.randomUUID() }) })
+      return api('/api/fines', { method: 'POST', body: JSON.stringify({ fineNumber: form.fineNumber.trim(), offenderFirstName: form.offenderFirstName, offenderLastName: form.offenderLastName, description: form.description, charges: form.charges, adjustmentCents: cents, adjustmentReason: form.adjustmentReason, wantedId: form.wantedId || null, citizenId: form.citizenId || null, idempotencyKey: crypto.randomUUID() }) })
     },
     onSuccess: async () => { toast.success('Штраф оформлен.'); setCreating(false); await queryClient.invalidateQueries() },
     onError: (error: Error) => toast.error(error.message),
@@ -65,6 +65,7 @@ export function FinesPage() {
       <Pager page={page} pageSize={list.data?.pageSize ?? 20} total={list.data?.total ?? 0} onPage={setPage} />
       {creating && <Modal title="Штраф" onClose={() => setCreating(false)}><form className="stack" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
         <div className="form-grid">
+          <Field label="Номер из игры" wide><input value={form.fineNumber} onChange={(event) => setForm({ ...form, fineNumber: event.target.value })} placeholder="Номер штрафа, как в игре" required /></Field>
           <CitizenSelect value={form.citizenId} picked={`${form.offenderLastName} ${form.offenderFirstName}`} onChange={(id) => {
             if (!id) { setForm({ ...form, citizenId: '' }); return }
             api<{ firstName: string; lastName: string }>(`/api/citizens/${id}`)

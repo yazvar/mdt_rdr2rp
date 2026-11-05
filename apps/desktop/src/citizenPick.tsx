@@ -26,6 +26,43 @@ export function Portrait(props: { photo?: string; name: string }) {
   )
 }
 
+export function fitPhoto(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) return Promise.reject(new Error('Нужен файл изображения.'))
+  const url = URL.createObjectURL(file)
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => {
+      const maxWidth = 480
+      const maxHeight = 640
+      const scale = Math.min(1, maxWidth / image.width, maxHeight / image.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(image.width * scale))
+      canvas.height = Math.max(1, Math.round(image.height * scale))
+      const context = canvas.getContext('2d')
+      if (!context) {
+        URL.revokeObjectURL(url)
+        reject(new Error('Не удалось подготовить фотографию.'))
+        return
+      }
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      let quality = 0.86
+      let data = canvas.toDataURL('image/jpeg', quality)
+      while (data.length > 500_000 && quality > 0.45) {
+        quality -= 0.08
+        data = canvas.toDataURL('image/jpeg', quality)
+      }
+      URL.revokeObjectURL(url)
+      if (data.length > 550_000) reject(new Error('Фотография слишком большая даже после уменьшения.'))
+      else resolve(data)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Этот файл не открывается. Выберите JPEG или PNG либо вставьте ссылку.'))
+    }
+    image.src = url
+  })
+}
+
 export function CitizenSelect(props: { value: string; picked: string; onChange: (id: string) => void }) {
   const auth = useAuth()
   const enabled = can(auth.user, 'citizens.view')

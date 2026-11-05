@@ -8,9 +8,9 @@ import { fromLocalInput, toLocalInput, when } from '../format'
 import { Button, CopyButton, Empty, Field, Modal, Pager, Status, useConfirm, useToast } from '../ui'
 
 interface Item { name: string; quantity: number; notes: string }
-interface Seizure { id: string; caseNumber: string; suspectFirstName: string; suspectLastName: string; seizedAt: string; grounds: string; officerName: string; location: string; propertyStatus: string; notes: string; version: number; items: Item[] }
+interface Seizure { id: string; caseNumber: string; suspectFirstName: string; suspectLastName: string; seizedAt: string; grounds: string; officerName: string; location: string; propertyStatus: string; notes: string; version: number; items: Item[]; caseFile: { id: string; caseNumber: string; title: string } | null }
 
-const blank = { citizenId: '', suspectFirstName: '', suspectLastName: '', seizedAt: toLocalInput(new Date().toISOString()), grounds: '', location: '', notes: '', items: [{ name: '', quantity: 1, notes: '' }] as Item[] }
+const blank = { citizenId: '', caseId: '', suspectFirstName: '', suspectLastName: '', seizedAt: toLocalInput(new Date().toISOString()), grounds: '', location: '', notes: '', items: [{ name: '', quantity: 1, notes: '' }] as Item[] }
 
 export function SeizuresPage() {
   const auth = useAuth()
@@ -26,8 +26,13 @@ export function SeizuresPage() {
   const open = params.get('open')
   const list = useQuery({ queryKey: ['seizures', page, q], queryFn: () => api<{ items: Seizure[]; total: number; pageSize: number }>(`/api/seizures?page=${page}&q=${encodeURIComponent(q)}`) })
   const detail = useQuery({ queryKey: ['seizure', open], enabled: Boolean(open), queryFn: () => api<Seizure>(`/api/seizures/${open}`) })
+  const cases = useQuery({
+    queryKey: ['cases', 'pick'],
+    enabled: can(auth.user, 'cases.view') && (creating || Boolean(open)),
+    queryFn: () => api<{ items: { id: string; caseNumber: string; title: string }[] }>('/api/cases?pageSize=100&status=open'),
+  })
   const save = useMutation({
-    mutationFn: () => api('/api/seizures', { method: 'POST', body: JSON.stringify({ ...form, citizenId: form.citizenId || null, seizedAt: fromLocalInput(form.seizedAt), items: form.items.filter((item) => item.name) }) }),
+    mutationFn: () => api('/api/seizures', { method: 'POST', body: JSON.stringify({ ...form, citizenId: form.citizenId || null, caseId: form.caseId || null, seizedAt: fromLocalInput(form.seizedAt), items: form.items.filter((item) => item.name) }) }),
     onSuccess: async () => { toast.success('Конфискация записана.'); setCreating(false); await queryClient.invalidateQueries() },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -43,8 +48,8 @@ export function SeizuresPage() {
     <div>
       <div className="page-head"><div><p className="kicker">Имущество</p><h1>Конфискат</h1></div>{manage && <Button onClick={() => { setForm(blank); setCreating(true) }}>Новая запись</Button>}</div>
       <div className="filters"><input value={q} onChange={(event) => { setQ(event.target.value); setPage(1) }} placeholder="Имя, дело, сотрудник" /></div>
-      <div className="table-wrap"><table><thead><tr><th>Дело</th><th>Владелец</th><th>Предметы</th><th>Сотрудник</th><th>Статус</th><th>Дата</th></tr></thead><tbody>
-        {list.data?.items.map((item) => <tr key={item.id} className="clickable" onClick={() => setParams({ open: item.id })}><td>{item.caseNumber}</td><td>{item.suspectLastName} {item.suspectFirstName}</td><td>{item.items.map((piece) => `${piece.name} × ${piece.quantity}`).join(', ')}</td><td>{item.officerName}</td><td><Status code={item.propertyStatus} /></td><td>{when(item.seizedAt)}</td></tr>)}
+      <div className="table-wrap"><table><thead><tr><th>Запись</th><th>Дело</th><th>Владелец</th><th>Предметы</th><th>Сотрудник</th><th>Статус</th><th>Дата</th></tr></thead><tbody>
+        {list.data?.items.map((item) => <tr key={item.id} className="clickable" onClick={() => setParams({ open: item.id })}><td>{item.caseNumber}</td><td>{item.caseFile ? `${item.caseFile.caseNumber} · ${item.caseFile.title}` : '—'}</td><td>{item.suspectLastName} {item.suspectFirstName}</td><td>{item.items.map((piece) => `${piece.name} × ${piece.quantity}`).join(', ')}</td><td>{item.officerName}</td><td><Status code={item.propertyStatus} /></td><td>{when(item.seizedAt)}</td></tr>)}
       </tbody></table>{!list.data?.items.length && <Empty text="Конфискаций нет." />}</div>
       <Pager page={page} pageSize={list.data?.pageSize ?? 20} total={list.data?.total ?? 0} onPage={setPage} />
       {creating && <Modal title="Конфискация" onClose={() => setCreating(false)}><form className="form-grid" onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
@@ -58,12 +63,18 @@ export function SeizuresPage() {
         <Field label="Фамилия"><input value={form.suspectLastName} onChange={(event) => setForm({ ...form, suspectLastName: event.target.value })} required readOnly={Boolean(form.citizenId)} /></Field>
         <Field label="Дата"><input type="datetime-local" value={form.seizedAt} onChange={(event) => setForm({ ...form, seizedAt: event.target.value })} required /></Field>
         <Field label="Место"><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></Field>
+        {can(auth.user, 'cases.view') && <Field label="Дело" wide><select value={form.caseId} onChange={(event) => setForm({ ...form, caseId: event.target.value })}><option value="">Без дела</option>{cases.data?.items.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} — {item.title}</option>)}</select></Field>}
         <Field label="Основание" wide><textarea value={form.grounds} onChange={(event) => setForm({ ...form, grounds: event.target.value })} required /></Field>
         {form.items.map((item, index) => <div className="row wide" key={index}><input placeholder="Предмет" value={item.name} onChange={(event) => setForm({ ...form, items: form.items.map((piece, i) => i === index ? { ...piece, name: event.target.value } : piece) })} /><input type="number" min={1} value={item.quantity} onChange={(event) => setForm({ ...form, items: form.items.map((piece, i) => i === index ? { ...piece, quantity: Number(event.target.value) } : piece) })} /></div>)}
         <Button ghost type="button" onClick={() => setForm({ ...form, items: [...form.items, { name: '', quantity: 1, notes: '' }] })}>Ещё предмет</Button>
         <div className="wide"><Button disabled={!auth.online || save.isPending}>Сохранить</Button></div>
       </form></Modal>}
-      {detail.data && <Modal title={detail.data.caseNumber} onClose={() => setParams({})}><CopyButton value={detail.data.caseNumber} /><p>{detail.data.grounds}</p><p>{detail.data.location}</p><Status code={detail.data.propertyStatus} />{manage && <div className="row" style={{ marginTop: 12 }}><Button onClick={() => setStatus('returned')}>Вернуть</Button><Button onClick={() => setStatus('stored')}>На хранение</Button><Button danger onClick={() => setStatus('written_off')}>Списать</Button></div>}</Modal>}
+      {detail.data && <Modal title={detail.data.caseNumber} onClose={() => setParams({})}><CopyButton value={detail.data.caseNumber} /><p>{detail.data.grounds}</p><p>{detail.data.location}</p>{detail.data.caseFile && <p>Дело {detail.data.caseFile.caseNumber}: {detail.data.caseFile.title}</p>}<Status code={detail.data.propertyStatus} />{manage && can(auth.user, 'cases.view') && <Field label="Привязать к делу"><select value={detail.data.caseFile?.id ?? ''} onChange={(event) => {
+        const caseId = event.target.value || null
+        api(`/api/seizures/${detail.data?.id}`, { method: 'PATCH', body: JSON.stringify({ version: detail.data?.version, reason: 'Связано с делом', caseId }) })
+          .then(async () => { toast.success(caseId ? 'Конфискат привязан к делу.' : 'Конфискат отвязан от дела.'); await queryClient.invalidateQueries() })
+          .catch((error: Error) => toast.error(error.message))
+      }}><option value="">Без дела</option>{cases.data?.items.map((item) => <option key={item.id} value={item.id}>{item.caseNumber} — {item.title}</option>)}{detail.data.caseFile && !cases.data?.items.some((item) => item.id === detail.data?.caseFile?.id) && <option value={detail.data.caseFile.id}>{detail.data.caseFile.caseNumber} — {detail.data.caseFile.title}</option>}</select></Field>}{manage && <div className="row" style={{ marginTop: 12 }}><Button onClick={() => setStatus('returned')}>Вернуть</Button><Button onClick={() => setStatus('stored')}>На хранение</Button><Button danger onClick={() => setStatus('written_off')}>Списать</Button></div>}</Modal>}
     </div>
   )
 }

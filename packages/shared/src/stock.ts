@@ -29,6 +29,7 @@ const REQUEST_TRANSITIONS: Record<string, string[]> = {
   approved: ['issued', 'rejected', 'closed'],
   rejected: ['closed'],
   issued: ['closed'],
+  registered: ['closed'],
   closed: [],
 }
 
@@ -37,6 +38,7 @@ const requestState: Record<string, string> = {
   approved: 'одобрен',
   rejected: 'отклонён',
   issued: 'выдан',
+  registered: 'в реестре',
   closed: 'закрыт',
 }
 

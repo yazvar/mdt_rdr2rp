@@ -17,10 +17,11 @@ const summaryLabel: Record<string, string> = {
   issues: 'Выдачи',
   losses: 'Утери',
   seizures: 'Конфискат',
+  cases: 'Дела',
   laws: 'Статьи',
   wanted: 'Розыск',
   fines: 'Штрафы',
-  requests: 'Запросы',
+  requests: 'Реестр',
   entries: 'Проводки',
   errors: 'Ошибки',
 }
