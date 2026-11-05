@@ -1,0 +1,43 @@
+{
+  "name": "mdt-rdr2rp",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Шерифский MDT для RDR2 Roleplay",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @mdt/shared && concurrently -n shared,api,desktop -c gray,cyan,yellow \"npm run dev -w @mdt/shared\" \"npm run dev -w @mdt/api\" \"npm run dev -w @mdt/desktop\"",
+    "dev:api": "npm run build -w @mdt/shared && concurrently -n shared,api -c gray,cyan \"npm run dev -w @mdt/shared\" \"npm run dev -w @mdt/api\"",
+    "dev:bot": "npm run build -w @mdt/shared && concurrently -n shared,bot -c gray,magenta \"npm run dev -w @mdt/shared\" \"npm run dev -w @mdt/bot\"",
+    "build": "npm run build -w @mdt/shared && npm run build -w @mdt/api && npm run build -w @mdt/bot && npm run build -w @mdt/desktop",
+    "build:win": "npm run build -w @mdt/shared && npm run build:win -w @mdt/desktop",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "npm run build -w @mdt/shared && prisma db seed",
+    "db:purge-release": "tsx apps/api/scripts/purge-release.ts",
+    "db:push": "prisma db push",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc -p packages/shared/tsconfig.json --noEmit && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/bot/tsconfig.json --noEmit && tsc -p apps/desktop/tsconfig.json --noEmit"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "concurrently": "^9.1.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

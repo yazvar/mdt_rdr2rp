@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+**/.env
+.git
+release
+out
+coverage
+*.log
+apps/desktop/src
+apps/desktop/electron
+**/*.exe

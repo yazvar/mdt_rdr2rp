@@ -1,0 +1,877 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Доступ
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  discordId     String    @unique
+  username      String
+  globalName    String?
+  avatar        String?
+  accessGranted Boolean   @default(false)
+  blocked       Boolean   @default(false)
+  employeeId    String?   @unique
+  employee      Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  roles         UserRole[]
+  sessions      Session[]
+  notifications Notification[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+
+  @@index([accessGranted, blocked])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String   @default("")
+  system      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  module      String
+  description String
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  userAgent String    @default("")
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model OauthAttempt {
+  id           String   @id @default(cuid())
+  state        String   @unique
+  codeVerifier String
+  status       String   @default("pending")
+  sessionToken String?
+  errorCode    String?
+  errorMessage String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt, status])
+}
+
+// ---------------------------------------------------------------------------
+// Сотрудники
+// ---------------------------------------------------------------------------
+
+model Rank {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  sortOrder Int        @default(0)
+  active    Boolean    @default(true)
+  employees Employee[]
+}
+
+model Employee {
+  id               String         @id @default(cuid())
+  firstName        String
+  lastName         String
+  badgeNumber      String         @unique
+  rankId           String
+  rank             Rank           @relation(fields: [rankId], references: [id])
+  position         String?
+  discordId        String?        @unique
+  status           EmployeeStatus @default(active)
+  joinedAt         DateTime
+  contact          String         @default("")
+  notes            String         @default("") @db.Text
+  serviceComments  String         @default("") @db.Text
+  archivedAt       DateTime?
+  demo             Boolean        @default(false)
+  version          Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  user                 User?
+  history              EmployeeHistory[]
+  issues               EquipmentIssue[]      @relation("IssueHolder")
+  issuedBy             EquipmentIssue[]      @relation("IssueIssuer")
+  lossesResponsible    LossRecord[]          @relation("LossResponsible")
+  lossesReviewer       LossRecord[]          @relation("LossReviewer")
+  seizures             Seizure[]
+  wantedCreated        WantedNotice[]
+  finesIssued          Fine[]
+  requests             EquipmentRequest[]
+  financeEntries       FinanceEntry[]
+
+  @@index([lastName, firstName])
+  @@index([status])
+  @@index([rankId])
+}
+
+model Citizen {
+  id         String    @id @default(cuid())
+  firstName  String
+  lastName   String
+  alias      String    @default("")
+  occupation String    @default("")
+  residence  String    @default("")
+  marks      String    @default("") @db.Text
+  notes      String    @default("") @db.Text
+  photoData  String    @default("") @db.Text
+  archivedAt DateTime?
+  demo       Boolean   @default(false)
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  wanted   WantedNotice[]
+  fines    Fine[]
+  seizures Seizure[]
+
+  @@index([lastName, firstName])
+  @@index([archivedAt])
+}
+
+model EmployeeHistory {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       String
+  fromValue  String   @default("")
+  toValue    String   @default("")
+  reason     String   @default("")
+  actorId    String?
+  actorName  String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Склад и вооружение
+// ---------------------------------------------------------------------------
+
+model InventoryItem {
+  id              String   @id @default(cuid())
+  name            String
+  category        String
+  serialNumber    String?
+  quantityOnHand  Int      @default(0)
+  unitCostCents   Int?
+  notes           String   @default("") @db.Text
+  archived        Boolean  @default(false)
+  demo            Boolean  @default(false)
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  movements StockMovement[]
+  issues    EquipmentIssue[]
+  requests  EquipmentRequest[]
+  losses    LossRecord[]
+
+  @@index([name])
+  @@index([category])
+  @@index([serialNumber])
+}
+
+model StockMovement {
+  id        String        @id @default(cuid())
+  itemId    String
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  delta     Int
+  quantityAfter Int
+  reason    String
+  refType   String        @default("")
+  refId     String        @default("")
+  actorId   String?
+  actorName String        @default("")
+  createdAt DateTime      @default(now())
+
+  @@index([itemId, createdAt])
+  @@index([refType, refId])
+}
+
+model EquipmentIssue {
+  id              String      @id @default(cuid())
+  itemId          String?
+  item            InventoryItem? @relation(fields: [itemId], references: [id])
+  itemName        String
+  category        String
+  quantity        Int
+  serialNumber    String?
+  employeeId      String
+  employee        Employee    @relation("IssueHolder", fields: [employeeId], references: [id])
+  employeeName    String
+  employeeBadge   String
+  issuedById      String?
+  issuedBy        Employee?   @relation("IssueIssuer", fields: [issuedById], references: [id])
+  issuerName      String      @default("")
+  issuedAt        DateTime    @default(now())
+  returnedAt      DateTime?
+  status          IssueStatus @default(issued)
+  notes           String      @default("") @db.Text
+  requestId       String?     @unique
+  request         EquipmentRequest? @relation(fields: [requestId], references: [id])
+  demo            Boolean     @default(false)
+  version         Int         @default(1)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  movements EquipmentMovement[]
+  losses    LossRecord[]
+
+  @@index([employeeId, status])
+  @@index([status])
+  @@index([serialNumber])
+  @@index([itemName])
+}
+
+model EquipmentMovement {
+  id        String         @id @default(cuid())
+  issueId   String
+  issue     EquipmentIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  type      String
+  quantity  Int
+  fromStatus String        @default("")
+  toStatus  String         @default("")
+  notes     String         @default("")
+  actorId   String?
+  actorName String         @default("")
+  createdAt DateTime       @default(now())
+
+  @@index([issueId, createdAt])
+}
+
+model LossRecord {
+  id                    String     @id @default(cuid())
+  caseNumber            String     @unique
+  itemName              String
+  category              String
+  quantity              Int
+  serialNumber          String?
+  responsibleEmployeeId String?
+  responsibleEmployee   Employee?  @relation("LossResponsible", fields: [responsibleEmployeeId], references: [id])
+  responsibleName       String     @default("")
+  responsibleBadge      String     @default("")
+  discoveredAt          DateTime
+  description           String     @default("") @db.Text
+  status                LossStatus @default(open)
+  reviewerId            String?
+  reviewer              Employee?  @relation("LossReviewer", fields: [reviewerId], references: [id])
+  reviewerName          String     @default("")
+  closedAt              DateTime?
+  closeReason           String     @default("")
+  equipmentIssueId      String?
+  equipmentIssue        EquipmentIssue? @relation(fields: [equipmentIssueId], references: [id])
+  inventoryItemId       String?
+  inventoryItem         InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  stockAdjusted         Boolean    @default(false)
+  demo                  Boolean    @default(false)
+  version               Int        @default(1)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  actions LossAction[]
+
+  @@index([status])
+  @@index([responsibleEmployeeId])
+  @@index([itemName])
+}
+
+model LossAction {
+  id         String     @id @default(cuid())
+  lossId     String
+  loss       LossRecord @relation(fields: [lossId], references: [id], onDelete: Cascade)
+  type       String
+  fromStatus String     @default("")
+  toStatus   String     @default("")
+  notes      String     @default("")
+  actorId    String?
+  actorName  String     @default("")
+  createdAt  DateTime   @default(now())
+
+  @@index([lossId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Конфискат, законы, розыск, штрафы
+// ---------------------------------------------------------------------------
+
+model Seizure {
+  id              String                 @id @default(cuid())
+  caseNumber      String                 @unique
+  suspectFirstName String
+  suspectLastName String
+  citizenId       String?
+  citizen         Citizen?               @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  seizedAt        DateTime
+  grounds         String                 @db.Text
+  officerId       String?
+  officer         Employee?              @relation(fields: [officerId], references: [id])
+  officerName     String                 @default("")
+  officerBadge    String                 @default("")
+  location        String                 @default("")
+  relatedCaseRef  String                 @default("")
+  notes           String                 @default("") @db.Text
+  propertyStatus  SeizurePropertyStatus  @default(held)
+  demo            Boolean                @default(false)
+  version         Int                    @default(1)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  items   SeizureItem[]
+  history SeizureEvent[]
+
+  @@index([suspectLastName, suspectFirstName])
+  @@index([citizenId])
+  @@index([seizedAt])
+  @@index([officerId])
+  @@index([propertyStatus])
+}
+
+model SeizureItem {
+  id        String  @id @default(cuid())
+  seizureId String
+  seizure   Seizure @relation(fields: [seizureId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Int
+  notes     String  @default("")
+
+  @@index([seizureId])
+}
+
+model SeizureEvent {
+  id         String   @id @default(cuid())
+  seizureId  String
+  seizure    Seizure  @relation(fields: [seizureId], references: [id], onDelete: Cascade)
+  type       String
+  fromValue  String   @default("")
+  toValue    String   @default("")
+  reason     String   @default("")
+  actorId    String?
+  actorName  String   @default("")
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([seizureId, createdAt])
+}
+
+model Law {
+  id                  String    @id @default(cuid())
+  articleNumber       String    @unique
+  title               String
+  category            String
+  grade               String    @default("")
+  description         String    @default("") @db.Text
+  conditions          String    @default("") @db.Text
+  fineMinCents        Int       @default(0)
+  fineCents           Int       @default(0)
+  jailMin             Int       @default(0)
+  jailDays            Int       @default(0)
+  additionalPenalties String    @default("") @db.Text
+  sortOrder           Int       @default(0)
+  status              LawStatus @default(active)
+  isDemo              Boolean   @default(false)
+  version             Int       @default(1)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  revisions    LawRevision[]
+  wantedCharges WantedCharge[]
+  fineCharges  FineCharge[]
+
+  @@index([title])
+  @@index([category, status])
+  @@index([grade])
+  @@index([sortOrder])
+}
+
+model LawRevision {
+  id        String   @id @default(cuid())
+  lawId     String
+  law       Law      @relation(fields: [lawId], references: [id], onDelete: Cascade)
+  snapshot  Json
+  reason    String   @default("")
+  actorId   String?
+  actorName String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([lawId, createdAt])
+}
+
+model WantedNotice {
+  id             String       @id @default(cuid())
+  caseNumber     String       @unique
+  firstName      String
+  lastName       String
+  citizenId      String?
+  citizen        Citizen?     @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  photoUrl       String       @default("")
+  photoData      String       @default("") @db.Text
+  postedAt       DateTime     @default(now())
+  grounds        String       @db.Text
+  description    String       @default("") @db.Text
+  wantedLevel    Int
+  fineCents      Int          @default(0)
+  jailDays       Int          @default(0)
+  createdById    String?
+  createdBy      Employee?    @relation(fields: [createdById], references: [id])
+  createdByName  String       @default("")
+  createdByBadge String       @default("")
+  evidence       String       @default("") @db.Text
+  status         WantedStatus @default(active)
+  closeReason    String       @default("")
+  closedAt       DateTime?
+  demo           Boolean      @default(false)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  charges WantedCharge[]
+  events  WantedEvent[]
+  fines   Fine[]
+
+  @@index([lastName, firstName])
+  @@index([status, wantedLevel])
+  @@index([postedAt])
+  @@index([citizenId])
+}
+
+model WantedCharge {
+  id       String       @id @default(cuid())
+  wantedId String
+  wanted   WantedNotice @relation(fields: [wantedId], references: [id], onDelete: Cascade)
+  lawId    String?
+  law      Law?         @relation(fields: [lawId], references: [id])
+  articleNumber String
+  title    String
+
+  @@index([wantedId])
+  @@index([lawId])
+}
+
+model WantedEvent {
+  id         String       @id @default(cuid())
+  wantedId   String
+  wanted     WantedNotice @relation(fields: [wantedId], references: [id], onDelete: Cascade)
+  type       String
+  fromValue  String       @default("")
+  toValue    String       @default("")
+  reason     String       @default("")
+  actorId    String?
+  actorName  String       @default("")
+  snapshot   Json?
+  createdAt  DateTime     @default(now())
+
+  @@index([wantedId, createdAt])
+}
+
+model Fine {
+  id                  String         @id @default(cuid())
+  fineNumber          String         @unique
+  offenderFirstName   String
+  offenderLastName    String
+  citizenId           String?
+  citizen             Citizen?       @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+  issuedAt            DateTime       @default(now())
+  issuedById          String?
+  issuedBy            Employee?      @relation(fields: [issuedById], references: [id])
+  issuerName          String         @default("")
+  issuerBadge         String         @default("")
+  description         String         @default("") @db.Text
+  calculatedCents     Int            @default(0)
+  amountCents         Int
+  adjusted            Boolean        @default(false)
+  adjustmentReason    String         @default("")
+  jailDays            Int            @default(0)
+  additionalPenalties String         @default("") @db.Text
+  paymentStatus       PaymentStatus  @default(unpaid)
+  paidCents           Int            @default(0)
+  sentenceStatus      SentenceStatus @default(pending)
+  wantedId            String?
+  wanted              WantedNotice?  @relation(fields: [wantedId], references: [id])
+  demo                Boolean        @default(false)
+  version             Int            @default(1)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  charges FineCharge[]
+  events  FineEvent[]
+
+  @@index([offenderLastName, offenderFirstName])
+  @@index([citizenId])
+  @@index([issuedAt])
+  @@index([issuedById])
+  @@index([paymentStatus])
+  @@index([wantedId])
+}
+
+model FineCharge {
+  id            String @id @default(cuid())
+  fineId        String
+  fine          Fine   @relation(fields: [fineId], references: [id], onDelete: Cascade)
+  lawId         String?
+  law           Law?   @relation(fields: [lawId], references: [id])
+  articleNumber String
+  title         String
+  fineCents     Int    @default(0)
+  jailDays      Int    @default(0)
+  additionalPenalties String @default("")
+
+  @@index([fineId])
+  @@index([lawId])
+}
+
+model FineEvent {
+  id         String   @id @default(cuid())
+  fineId     String
+  fine       Fine     @relation(fields: [fineId], references: [id], onDelete: Cascade)
+  type       String
+  fromValue  String   @default("")
+  toValue    String   @default("")
+  reason     String   @default("")
+  actorId    String?
+  actorName  String   @default("")
+  snapshot   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([fineId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Запросы снаряжения
+// ---------------------------------------------------------------------------
+
+model EquipmentRequest {
+  id            String        @id @default(cuid())
+  requestNumber String        @unique
+  employeeId    String
+  employee      Employee      @relation(fields: [employeeId], references: [id])
+  requesterName String
+  badgeNumber   String
+  itemName      String
+  inventoryItemId String?
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  quantity      Int
+  reason        String        @db.Text
+  comment       String        @default("") @db.Text
+  status        RequestStatus @default(pending)
+  reviewedById  String?
+  reviewerName  String        @default("")
+  reviewComment String        @default("")
+  reviewedAt    DateTime?
+  issuedAt      DateTime?
+  demo          Boolean       @default(false)
+  version       Int           @default(1)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  issue   EquipmentIssue?
+  events  RequestEvent[]
+
+  @@index([status, createdAt])
+  @@index([employeeId])
+}
+
+model RequestEvent {
+  id         String           @id @default(cuid())
+  requestId  String
+  request    EquipmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  type       String
+  fromStatus String           @default("")
+  toStatus   String           @default("")
+  comment    String           @default("")
+  actorId    String?
+  actorName  String           @default("")
+  createdAt  DateTime         @default(now())
+
+  @@index([requestId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Бухгалтерия
+// ---------------------------------------------------------------------------
+
+model FinanceCategory {
+  id        String           @id @default(cuid())
+  name      String
+  direction FinanceDirection
+  system    Boolean          @default(false)
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  entries   FinanceEntry[]
+
+  @@unique([name, direction])
+}
+
+model FinanceEntry {
+  id            String           @id @default(cuid())
+  entryNumber   String           @unique
+  direction     FinanceDirection
+  amountCents   Int
+  currencyCode  String           @default("USD")
+  occurredAt    DateTime         @default(now())
+  categoryId    String
+  category      FinanceCategory  @relation(fields: [categoryId], references: [id])
+  description   String           @db.Text
+  authorId      String?
+  authorName    String           @default("")
+  employeeId    String?
+  employee      Employee?        @relation(fields: [employeeId], references: [id])
+  documentRef   String           @default("")
+  sourceKey     String?          @unique
+  sourceType    String           @default("")
+  sourceId      String           @default("")
+  reversesId    String?
+  demo          Boolean          @default(false)
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([occurredAt])
+  @@index([categoryId])
+  @@index([direction])
+  @@index([sourceType, sourceId])
+}
+
+// ---------------------------------------------------------------------------
+// Уведомления, аудит, доставка в Discord, синхронизация
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String    @db.Text
+  module    String    @default("")
+  recordId  String    @default("")
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String?
+  actor      User?       @relation("AuditActor", fields: [actorId], references: [id])
+  actorName  String      @default("")
+  discordId  String      @default("")
+  action     String
+  module     String
+  recordId   String      @default("")
+  oldValues  Json?
+  newValues  Json?
+  reason     String      @default("")
+  result     AuditResult @default(success)
+  ip         String      @default("")
+  createdAt  DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([module, recordId])
+  @@index([actorId])
+  @@index([action])
+}
+
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  dedupeKey   String       @unique
+  kind        String
+  payload     Json
+  status      OutboxStatus @default(pending)
+  attempts    Int          @default(0)
+  lastError   String       @default("")
+  availableAt DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  processedAt DateTime?
+
+  deliveries OutboxDelivery[]
+
+  @@index([status, availableAt])
+}
+
+model OutboxDelivery {
+  id        String      @id @default(cuid())
+  eventId   String
+  event     OutboxEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  discordId String
+  status    String      @default("pending")
+  attempts  Int         @default(0)
+  lastError String      @default("")
+  sentAt    DateTime?
+
+  @@unique([eventId, discordId])
+  @@index([status])
+}
+
+model ChangeEvent {
+  id         Int      @id @default(autoincrement())
+  module     String
+  action     String
+  recordId   String
+  permission String
+  employeeId String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@index([module, createdAt])
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model SystemError {
+  id        String   @id @default(cuid())
+  source    String
+  message   String
+  details   String   @default("") @db.Text
+  path      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SequenceCounter {
+  key   String @id
+  value Int    @default(0)
+}
+
+model IdempotencyKey {
+  key       String   @id
+  userId    String
+  response  Json
+  createdAt DateTime @default(now())
+}
+
+enum EmployeeStatus {
+  active
+  suspended
+  dismissed
+  on_leave
+}
+
+enum IssueStatus {
+  issued
+  returned
+  lost
+  written_off
+}
+
+enum LossStatus {
+  open
+  investigating
+  found
+  returned
+  stored
+  written_off
+  closed
+}
+
+enum SeizurePropertyStatus {
+  held
+  returned
+  stored
+  written_off
+}
+
+enum LawStatus {
+  active
+  amended
+  repealed
+}
+
+enum WantedStatus {
+  active
+  detained
+  closed
+  cancelled
+}
+
+enum PaymentStatus {
+  unpaid
+  partial
+  paid
+  cancelled
+}
+
+enum SentenceStatus {
+  pending
+  served
+  cancelled
+  not_applicable
+}
+
+enum RequestStatus {
+  pending
+  approved
+  rejected
+  issued
+  closed
+}
+
+enum FinanceDirection {
+  in
+  out
+}
+
+enum OutboxStatus {
+  pending
+  processing
+  sent
+  failed
+}
+
+enum AuditResult {
+  success
+  failure
+}

@@ -1,0 +1,76 @@
+{
+  "name": "@mdt/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Шерифский MDT для RDR2 Roleplay",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yazvar/mdt_rdr2rp.git"
+  },
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -n vite,electron \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "tsc -p tsconfig.electron.json && vite build",
+    "build:win": "npm run build && electron-builder --win nsis --publish never",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mdt/shared": "*",
+    "@tanstack/react-query": "^5.62.8",
+    "electron-updater": "^6.6.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.16",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.rdr2rp.sheriffmdt",
+    "productName": "Sheriff MDT",
+    "electronVersion": "33.4.11",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://updates.invalid"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Sheriff-MDT-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Sheriff MDT"
+    },
+    "protocols": [
+      {
+        "name": "Sheriff MDT",
+        "schemes": [
+          "sheriff-mdt"
+        ]
+      }
+    ]
+  }
+}
