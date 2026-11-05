@@ -9,6 +9,10 @@ function unwrap(value: string | undefined): string {
   return trimmed
 }
 
+function discordCredential(value: string | undefined): string {
+  return unwrap(value).replace(/["']/g, '').trim()
+}
+
 function oauthScopes(value: string | undefined): string {
   const scopes = unwrap(value)
     .replace(/["']/g, '')
@@ -25,8 +29,8 @@ export const config = {
   sessionPepper: process.env.SESSION_PEPPER || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-pepper'),
   sessionHours: Number(process.env.SESSION_HOURS) || 24,
   sessionAbsoluteDays: Number(process.env.SESSION_ABSOLUTE_DAYS) || 14,
-  discordClientId: unwrap(process.env.DISCORD_CLIENT_ID),
-  discordClientSecret: unwrap(process.env.DISCORD_CLIENT_SECRET),
+  discordClientId: discordCredential(process.env.DISCORD_CLIENT_ID),
+  discordClientSecret: discordCredential(process.env.DISCORD_CLIENT_SECRET),
   discordScopes: oauthScopes(process.env.DISCORD_OAUTH_SCOPES),
   bootstrapDiscordIds: (process.env.BOOTSTRAP_DISCORD_IDS ?? '')
     .split(',')

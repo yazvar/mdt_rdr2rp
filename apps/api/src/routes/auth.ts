@@ -307,7 +307,17 @@ async function discordProfile(code: string, verifier: string): Promise<{ id: str
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   })
-  if (!tokenResponse.ok) throw new Error('token exchange rejected')
+  if (!tokenResponse.ok) {
+    const details = await tokenResponse.text()
+    let reason = 'token exchange rejected'
+    try {
+      const parsed = JSON.parse(details) as { error?: string }
+      if (parsed.error && /^[a-z0-9_]+$/i.test(parsed.error)) reason = `token exchange rejected: ${parsed.error}`
+    } catch {
+      reason = 'token exchange rejected'
+    }
+    throw new Error(reason)
+  }
   const tokenJson = (await tokenResponse.json()) as { access_token?: string }
   if (!tokenJson.access_token) throw new Error('token missing')
   const profileResponse = await fetch('https://discord.com/api/users/@me', {
