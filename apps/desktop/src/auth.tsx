@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { io, type Socket } from 'socket.io-client'
 import type { PublicUser } from '@mdt/shared'
 import { API_URL, ApiError, api, clearToken, getToken, openExternal, setToken, sleep } from './api'
+import { unlockSound } from './sound'
 
 interface Department {
   name: string
@@ -78,7 +79,11 @@ export function AuthProvider(props: { children: ReactNode }) {
     refresh().catch(() => setUser(null)).finally(() => setLoading(false))
     const onDenied = () => { setUser(null); queryClient.clear() }
     window.addEventListener('mdt:unauthorized', onDenied)
-    return () => window.removeEventListener('mdt:unauthorized', onDenied)
+    window.addEventListener('pointerdown', unlockSound)
+    return () => {
+      window.removeEventListener('mdt:unauthorized', onDenied)
+      window.removeEventListener('pointerdown', unlockSound)
+    }
   }, [queryClient])
 
   useEffect(() => {
@@ -94,6 +99,8 @@ export function AuthProvider(props: { children: ReactNode }) {
       socket.on('mdt:change', changed)
       socket.on('mdt:notification', changed)
       socket.on('mdt:release', () => { if (!closed) setReleasePulse((value) => value + 1) })
+      socket.on('mdt:presence', () => { if (!closed) window.dispatchEvent(new Event('mdt:presence')) })
+      socket.on('mdt:broadcast', (payload) => { if (!closed) window.dispatchEvent(new CustomEvent('mdt:broadcast', { detail: payload })) })
     })
     const timer = setInterval(() => {
       api('/api/health').then(() => { if (!closed) setOnline(true) }).catch(() => { if (!closed) setOnline(false) })

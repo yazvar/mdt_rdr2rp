@@ -6,7 +6,7 @@ import { ensureCatalog, ensureCode } from './bootstrap'
 import { createApp } from './app'
 import { log } from './lib/log'
 import { prisma } from './lib/prisma'
-import { attachIo } from './lib/realtime'
+import { attachIo, noteDisconnected, publishPresence } from './lib/realtime'
 import { ensureUpdatesDir } from './services/release'
 import { loadActor } from './lib/session'
 
@@ -38,6 +38,8 @@ async function main() {
   io.on('connection', (socket) => {
     const userId = socket.data.userId as string | undefined
     if (userId) socket.join(`user:${userId}`)
+    publishPresence()
+    socket.on('disconnect', () => noteDisconnected())
   })
   attachIo(io)
   server.requestTimeout = 15 * 60 * 1000

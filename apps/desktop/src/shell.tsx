@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { API_URL, api } from './api'
 import { can, useAuth } from './auth'
+import { playAlert } from './sound'
 import { Button, Star } from './ui'
 
 const links = [
@@ -129,10 +131,39 @@ export function Shell(props: { children: React.ReactNode }) {
           {!auth.online && <div className="banner">Связь с архивом прервана. Запись не будет считаться сохранённой, пока сервер не подтвердит операцию.</div>}
           {auth.department?.demoSeeded && <div className="banner demo">В архиве есть демонстрационные записи с пометкой ТЕСТ. Перед службой их нужно архивировать в администрации.</div>}
           <UpdateBanner />
+          <Bulletin />
           {props.children}
         </div>
       </section>
     </div>
+  )
+}
+
+interface BulletinNote { message: string; actorName: string; createdAt: string }
+
+function Bulletin() {
+  const [note, setNote] = useState<BulletinNote | null>(null)
+  useEffect(() => {
+    const onNote = (event: Event) => {
+      const detail = (event as CustomEvent<BulletinNote>).detail
+      if (!detail?.message) return
+      setNote(detail)
+      playAlert()
+    }
+    window.addEventListener('mdt:broadcast', onNote)
+    return () => window.removeEventListener('mdt:broadcast', onNote)
+  }, [])
+  if (!note) return null
+  return createPortal(
+    <div className="bulletin" role="status">
+      <p className="kicker">Оповещение департамента</p>
+      <strong>{note.message}</strong>
+      <div className="muted">{note.actorName}</div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <Button small type="button" onClick={() => setNote(null)}>Понятно</Button>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

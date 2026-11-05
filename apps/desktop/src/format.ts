@@ -109,6 +109,7 @@ const actions: Record<string, string> = {
   'backup.restore': 'Архив восстановлен',
   'demo.archive': 'Тестовые записи архивированы',
   'release.publish': 'Опубликовано обновление приложения',
+  'broadcast.send': 'Отправлено оповещение департамента',
   'auth.login': 'Вход в архив',
   'auth.logout': 'Выход из архива',
   'auth.denied': 'Вход отклонён',

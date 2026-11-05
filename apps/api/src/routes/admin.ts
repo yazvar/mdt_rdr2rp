@@ -18,6 +18,7 @@ import { prisma, run } from '../lib/prisma'
 import { clearSettingsCache, putSetting } from '../lib/settings'
 import { paging, parseBody, parseQuery } from '../lib/validate'
 import { actorOf, requireAdmin, requirePermission } from '../middleware/auth'
+import { onlineUserIds, publishBroadcast, publishNotification } from '../lib/realtime'
 import { assertCanAssign, assertKeepsAdmin, loadRoles, revokeSessions, setRoles } from '../services/access'
 import { exportBackup, restoreBackup } from '../services/backup'
 
@@ -68,6 +69,76 @@ adminRouter.get(
       prisma.systemError.count(),
     ])
     res.json({ users, employees, issues, losses, seizures, laws, wanted, fines, requests, entries, errors })
+  }),
+)
+
+adminRouter.get(
+  '/presence',
+  action(async (_req, res) => {
+    const online = new Set(onlineUserIds())
+    const users = await prisma.user.findMany({
+      include: {
+        employee: true,
+        roles: { include: { role: true } },
+        sessions: { where: { revokedAt: null, expiresAt: { gt: new Date() } }, select: { lastUsedAt: true } },
+      },
+    })
+    const items = users
+      .map((user) => {
+        const lastSeen = user.sessions.reduce<Date | null>((latest, session) => {
+          if (!latest || session.lastUsedAt > latest) return session.lastUsedAt
+          return latest
+        }, user.lastLoginAt)
+        return {
+          id: user.id,
+          discordId: user.discordId,
+          username: user.username,
+          name: user.employee ? `${user.employee.lastName} ${user.employee.firstName}` : user.globalName || user.username,
+          badgeNumber: user.employee?.badgeNumber ?? '',
+          roles: user.roles.map((link) => link.role.name),
+          blocked: user.blocked,
+          accessGranted: user.accessGranted,
+          online: online.has(user.id),
+          activeSessions: user.sessions.length,
+          lastSeenAt: lastSeen?.toISOString() ?? null,
+        }
+      })
+      .sort((left, right) => Number(right.online) - Number(left.online) || left.name.localeCompare(right.name, 'ru'))
+    res.json({ items, online: items.filter((item) => item.online).length })
+  }),
+)
+
+adminRouter.post(
+  '/broadcast',
+  action(async (req, res) => {
+    const actor = actorOf(req)
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : ''
+    if (message.length < 3 || message.length > 400) {
+      throw new HttpError(400, 'VALIDATION', 'Напишите оповещение от 3 до 400 символов.')
+    }
+    const recipients = await prisma.user.findMany({ where: { accessGranted: true, blocked: false }, select: { id: true } })
+    const notice = await run(async (tx) => {
+      if (recipients.length) {
+        await tx.notification.createMany({
+          data: recipients.map((user) => ({
+            userId: user.id,
+            title: 'Оповещение департамента',
+            body: message,
+            module: 'admin',
+          })),
+        })
+      }
+      await audit(tx, actor, {
+        action: 'broadcast.send',
+        module: 'admin',
+        reason: message,
+        newValues: { recipients: recipients.length },
+      })
+      return { message, actorName: actor.name, createdAt: new Date().toISOString() }
+    })
+    publishBroadcast(notice)
+    for (const user of recipients) publishNotification(user.id)
+    res.status(201).json(notice)
   }),
 )
 

@@ -27,6 +27,33 @@ export function publishRelease(info: { version: string; notes: string }): void {
   io?.emit('mdt:release', info)
 }
 
+export function publishBroadcast(info: { message: string; actorName: string; createdAt: string }): void {
+  io?.emit('mdt:broadcast', info)
+}
+
+export function onlineUserIds(): string[] {
+  if (!io) return []
+  const ids = new Set<string>()
+  for (const socket of io.sockets.sockets.values()) {
+    const userId = socket.data.userId as string | undefined
+    if (userId) ids.add(userId)
+  }
+  return [...ids]
+}
+
+export function publishPresence(): void {
+  if (!io) return
+  const userIds = onlineUserIds()
+  for (const socket of io.sockets.sockets.values()) {
+    const permissions = (socket.data.permissions as string[] | undefined) ?? []
+    if (hasPermission(permissions, 'admin.access')) socket.emit('mdt:presence', { userIds })
+  }
+}
+
+export function noteDisconnected(): void {
+  setTimeout(() => publishPresence(), 0)
+}
+
 export function disconnectUser(userId: string): void {
   if (!io) return
   for (const socket of io.sockets.sockets.values()) {

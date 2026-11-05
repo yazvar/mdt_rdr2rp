@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuth } from './auth'
 import { AccountingPage } from './pages/Accounting'
 import { AdminPage } from './pages/Admin'
@@ -21,7 +21,16 @@ export function App() {
   if (!auth.user) return <Login />
   return (
     <Shell>
-      <Routes>
+      <Pages />
+    </Shell>
+  )
+}
+
+function Pages() {
+  const location = useLocation()
+  return (
+    <div key={location.pathname} className="page-enter">
+      <Routes location={location}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/employees" element={<EmployeesPage />} />
         <Route path="/citizens" element={<CitizensPage />} />
@@ -37,6 +46,6 @@ export function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Shell>
+    </div>
   )
 }
