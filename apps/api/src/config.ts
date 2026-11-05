@@ -1,14 +1,33 @@
+function unwrap(value: string | undefined): string {
+  const trimmed = (value ?? '').trim()
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
+  ) {
+    return trimmed.slice(1, -1).trim()
+  }
+  return trimmed
+}
+
+function oauthScopes(value: string | undefined): string {
+  const scopes = unwrap(value)
+    .replace(/["']/g, '')
+    .split(/[\s,]+/)
+    .filter((part) => /^[a-z0-9._:-]+$/i.test(part))
+  return scopes.length ? scopes.join(' ') : 'identify'
+}
+
 export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT) || 3000,
   databaseUrl: process.env.DATABASE_URL ?? '',
-  apiPublicUrl: (process.env.API_PUBLIC_URL ?? `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, ''),
+  apiPublicUrl: unwrap(process.env.API_PUBLIC_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, ''),
   sessionPepper: process.env.SESSION_PEPPER || (process.env.NODE_ENV === 'production' ? '' : 'dev-only-pepper'),
   sessionHours: Number(process.env.SESSION_HOURS) || 24,
   sessionAbsoluteDays: Number(process.env.SESSION_ABSOLUTE_DAYS) || 14,
-  discordClientId: process.env.DISCORD_CLIENT_ID?.trim() ?? '',
-  discordClientSecret: process.env.DISCORD_CLIENT_SECRET?.trim() ?? '',
-  discordScopes: process.env.DISCORD_OAUTH_SCOPES?.trim() || 'identify',
+  discordClientId: unwrap(process.env.DISCORD_CLIENT_ID),
+  discordClientSecret: unwrap(process.env.DISCORD_CLIENT_SECRET),
+  discordScopes: oauthScopes(process.env.DISCORD_OAUTH_SCOPES),
   bootstrapDiscordIds: (process.env.BOOTSTRAP_DISCORD_IDS ?? '')
     .split(',')
     .map((value) => value.trim())
