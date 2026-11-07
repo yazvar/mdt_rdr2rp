@@ -4,14 +4,15 @@ import { useState } from 'react'
 import { api } from '../api'
 import { can, useAuth } from '../auth'
 import { money, when } from '../format'
-import { Button, Empty, Field, Modal, Pager, Status, useToast } from '../ui'
+import { Button, Empty, Field, Modal, Pager, Status, useConfirm, useToast } from '../ui'
 
-interface Item { id: string; name: string; category: string; serialNumber: string | null; quantityOnHand: number; unitCostCents: number | null; version?: number }
+interface Item { id: string; name: string; category: string; serialNumber: string | null; quantityOnHand: number; unitCostCents: number | null; version: number }
 interface Issue { id: string; itemName: string; quantity: number; serialNumber: string | null; employeeName: string; employeeBadge: string; status: string; issuedAt: string; version: number }
 
 export function ArmoryPage() {
   const auth = useAuth()
   const toast = useToast()
+  const confirm = useConfirm()
   const queryClient = useQueryClient()
   const manage = can(auth.user, 'armory.manage')
   const all = can(auth.user, 'armory.view_all')
@@ -27,6 +28,18 @@ export function ArmoryPage() {
   const warnings = useQuery({ queryKey: ['warnings'], enabled: manage && tab === 'warnings', queryFn: () => api<{ warnings: { message: string }[] }>('/api/armory/warnings') })
   const employees = useQuery({ queryKey: ['employees', 'pick'], enabled: manage, queryFn: () => api<{ items: { id: string; firstName: string; lastName: string; badgeNumber: string }[] }>('/api/employees?pageSize=100&status=active') })
   const done = async (text: string) => { toast.success(text); setOpen(null); await queryClient.invalidateQueries() }
+  async function removeItem(item: Item) {
+    const answer = await confirm({
+      title: 'Удалить предмет со склада',
+      body: `«${item.name}» исчезнет из склада. Если он сейчас выдан, сначала оформите возврат.`,
+      reason: true,
+      danger: true,
+    })
+    if (!answer.ok) return
+    api(`/api/armory/items/${item.id}/delete`, { method: 'POST', body: JSON.stringify({ version: item.version, reason: answer.reason }) })
+      .then(() => done('Предмет удалён со склада.'))
+      .catch((error: Error) => toast.error(error.message))
+  }
   const createItem = useMutation({
     mutationFn: () => {
       const unitCostCents = itemForm.unitCost.trim() ? parseMoneyToCents(itemForm.unitCost) : null
@@ -44,7 +57,7 @@ export function ArmoryPage() {
   return (
     <div>
       <div className="page-head">
-        <div><p className="kicker">Снабжение</p><h1>Вооружение и снаряжение</h1></div>
+        <div><p className="kicker">Снабжение</p><h1>Склад</h1></div>
         {manage && <div className="row"><Button onClick={() => setOpen('item')}>На склад</Button><Button onClick={() => setOpen('issue')}>Выдать</Button></div>}
       </div>
       <div className="filters">
@@ -55,8 +68,8 @@ export function ArmoryPage() {
       </div>
       {tab === 'stock' && all && (
         <>
-          <div className="table-wrap"><table><thead><tr><th>Предмет</th><th>Категория</th><th>Номер</th><th>Остаток</th><th>Цена</th></tr></thead><tbody>
-            {items.data?.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.category}</td><td>{item.serialNumber || '—'}</td><td>{item.quantityOnHand}</td><td>{item.unitCostCents != null ? money(item.unitCostCents, auth.department?.currencySymbol) : '—'}</td></tr>)}
+          <div className="table-wrap"><table><thead><tr><th>Предмет</th><th>Категория</th><th>Номер</th><th>Остаток</th><th>Цена</th><th></th></tr></thead><tbody>
+            {items.data?.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.category}</td><td>{item.serialNumber || '—'}</td><td>{item.quantityOnHand}</td><td>{item.unitCostCents != null ? money(item.unitCostCents, auth.department?.currencySymbol) : '—'}</td><td>{manage && <Button small danger onClick={() => removeItem(item)}>Удалить</Button>}</td></tr>)}
           </tbody></table>{!items.data?.items.length && <Empty text="Склад пуст." />}</div>
           <Pager page={page} pageSize={items.data?.pageSize ?? 20} total={items.data?.total ?? 0} onPage={setPage} />
         </>

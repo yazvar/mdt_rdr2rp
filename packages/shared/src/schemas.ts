@@ -125,6 +125,13 @@ export const inventoryUpdateSchema = inventoryCreateSchema.partial().extend({
   version: z.number().int().positive(),
 }).strict()
 
+export const inventoryDeleteSchema = z
+  .object({
+    version: z.number().int().positive(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict()
+
 export const issueCreateSchema = z
   .object({
     itemId: z.string().trim().min(1),
@@ -309,6 +316,13 @@ export const finePaymentSchema = z
     action: z.enum(['mark_paid', 'record_payment', 'cancel', 'reopen', 'sentence_served', 'sentence_cancelled']),
     amountCents: z.number().int().positive().optional(),
     reason: z.string().trim().max(500).optional().default(''),
+  })
+  .strict()
+
+export const fineDeleteSchema = z
+  .object({
+    version: z.number().int().positive(),
+    reason: z.string().trim().min(3).max(500),
   })
   .strict()
 

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   PERMISSIONS,
   fineCreateSchema,
+  fineDeleteSchema,
   finePaymentSchema,
   formatMoney,
   paymentDelta,
@@ -248,6 +249,49 @@ finesRouter.post(
       return tx.fine.findUniqueOrThrow({ where: { id: current.id }, include: { charges: true, events: { orderBy: { createdAt: 'desc' } } } })
     })
     res.json(fine)
+  }),
+)
+
+finesRouter.post(
+  '/:id/delete',
+  requirePermission(PERMISSIONS.finesManage),
+  action(async (req, res) => {
+    const body = parseBody<ReturnType<typeof fineDeleteSchema.parse>>(fineDeleteSchema, req.body)
+    const actor = actorOf(req)
+    const settings = await getSettings()
+    await run(async (tx, effects) => {
+      const current = await tx.fine.findUnique({ where: { id: req.params.id } })
+      if (!current) throw new HttpError(404, 'NOT_FOUND', 'Штраф не найден.')
+      if (current.version !== body.version) throw conflict()
+      if (current.paidCents > 0 && current.paymentStatus !== 'cancelled' && settings.recognizeFineOnPayment) {
+        await postEntry(tx, effects, actor, {
+          direction: 'out',
+          amountCents: current.paidCents,
+          categoryName: 'Прочий расход',
+          description: `Удаление штрафа ${current.fineNumber}`,
+          sourceKey: `fine:${current.id}:delete:${current.paidCents}`,
+          sourceType: 'fine',
+          sourceId: current.id,
+          documentRef: current.fineNumber,
+        })
+      }
+      await audit(tx, actor, {
+        action: 'fine.delete',
+        module: 'fines',
+        recordId: current.id,
+        reason: body.reason,
+        oldValues: {
+          fineNumber: current.fineNumber,
+          offender: `${current.offenderLastName} ${current.offenderFirstName}`,
+          amountCents: current.amountCents,
+          paidCents: current.paidCents,
+          paymentStatus: current.paymentStatus,
+        },
+      })
+      await tx.fine.delete({ where: { id: current.id } })
+      await changed(tx, effects, { module: 'fines', action: 'fine.delete', recordId: current.id, permission: PERMISSIONS.finesView })
+    })
+    res.json({ ok: true })
   }),
 )
 

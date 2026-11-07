@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   PERMISSIONS,
   inventoryCreateSchema,
+  inventoryDeleteSchema,
   inventoryUpdateSchema,
   issueCreateSchema,
   issueReturnSchema,
@@ -162,6 +163,37 @@ armoryRouter.post(
       return tx.inventoryItem.findUniqueOrThrow({ where: { id: current.id } })
     })
     res.json(item)
+  }),
+)
+
+armoryRouter.post(
+  '/items/:id/delete',
+  requirePermission(PERMISSIONS.armoryManage),
+  action(async (req, res) => {
+    const body = parseBody<ReturnType<typeof inventoryDeleteSchema.parse>>(inventoryDeleteSchema, req.body)
+    const actor = actorOf(req)
+    await run(async (tx, effects) => {
+      const current = await tx.inventoryItem.findUnique({ where: { id: req.params.id } })
+      if (!current || current.archived) throw new HttpError(404, 'NOT_FOUND', 'Предмет склада не найден.')
+      if (current.version !== body.version) throw conflict()
+      const issued = await tx.equipmentIssue.count({ where: { itemId: current.id, status: 'issued' } })
+      if (issued > 0) {
+        throw new HttpError(409, 'ISSUED', 'Предмет сейчас выдан. Сначала оформите возврат, потом удалите карточку.')
+      }
+      await tx.equipmentIssue.updateMany({ where: { itemId: current.id }, data: { itemId: null } })
+      await tx.equipmentRequest.updateMany({ where: { inventoryItemId: current.id }, data: { inventoryItemId: null } })
+      await tx.lossRecord.updateMany({ where: { inventoryItemId: current.id }, data: { inventoryItemId: null } })
+      await audit(tx, actor, {
+        action: 'inventory.delete',
+        module: 'armory',
+        recordId: current.id,
+        reason: body.reason,
+        oldValues: { name: current.name, category: current.category, quantity: current.quantityOnHand, serialNumber: current.serialNumber },
+      })
+      await tx.inventoryItem.delete({ where: { id: current.id } })
+      await changed(tx, effects, { module: 'armory', action: 'inventory.delete', recordId: current.id, permission: PERMISSIONS.armoryViewAll })
+    })
+    res.json({ ok: true })
   }),
 )
 

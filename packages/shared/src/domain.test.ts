@@ -18,6 +18,7 @@ import { assertRequestTransition, nextQuantity, quantitiesMatchLedger, StockErro
 import { assertDevLoginAllowed, hashSessionToken, isDevPersonaId, redactSecrets, safeEqual } from './security'
 import { employeeCreateSchema, financeEntrySchema } from './schemas'
 import { sentenceError, totalsError } from './sentence'
+import { articleChargeLabel, fineBlankText, guessBlankDepartment } from './blank'
 import { zonedStart } from './time'
 
 describe('пределы наказания', () => {
@@ -28,6 +29,35 @@ describe('пределы наказания', () => {
     expect(totalsError(75_000, 60)).toBeNull()
     expect(totalsError(75_001, 0)).toMatch(/750/)
     expect(totalsError(0, 61)).toMatch(/60/)
+  })
+})
+
+describe('бланк штрафа', () => {
+  it('подставляет статьи, сумму и срок в текст для игры', () => {
+    const text = fineBlankText({
+      citizen: 'Ден Мёрфи',
+      passport: '123456',
+      articles: [articleChargeLabel('3.4', 'f'), articleChargeLabel('2.1', 'i')].join(', '),
+      fineCents: 12_000,
+      terms: 40,
+      department: 'Шерифский офис Валентайн',
+      rank: 'сержант',
+      officer: 'Джон Винчестер',
+      now: new Date('2026-11-07T12:00:00Z'),
+    })
+    expect(text).toBe([
+      'Гражданин: Ден Мёрфи №123456',
+      'Обвиняется в нарушении статей: 3.4 (f), 2.1 (i)',
+      'Приговорен к тюремному заключению в 40 сроков и штрафу $120.',
+      'Приговор был приведен к исполнению в Шерифский офис Валентайн.',
+      'Штраф обязан выплатить до 10.11.1918 (3 дня) в Шерифский офис Валентайн.',
+      'В случае не оплаты штрафа подлежит подачи в розыск и аресту.',
+      'Штраф выписал сержант Шерифский офис Валентайн Джон Винчестер.',
+      '',
+      'Ден Мёрфи 123456 до 10.11.1918 - НЕ ОПЛАЧЕН',
+    ].join('\n'))
+    expect(guessBlankDepartment('Шерифский департамент', 'Валентайн')).toBe('Шерифский офис Валентайн')
+    expect(articleChargeLabel('1.1', '')).toBe('1.1')
   })
 })
 

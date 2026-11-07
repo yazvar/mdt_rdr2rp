@@ -15,7 +15,7 @@ const links = [
   { to: '/fines', label: 'Штрафы', perm: 'fines.view', icon: 'M7 4h10v16l-2.2-1.4L12.5 20l-2.3-1.4L8 20l-1-16zM9 8h6M9 12h6' },
   { to: '/cases', label: 'Дела', perm: 'cases.view', icon: 'M7 3h7l5 5v13H7zM14 3v5h5' },
   { to: '/seizures', label: 'Конфискат', perm: 'seizure.view', icon: 'M4 8h16v11H4zM8 8V6a4 4 0 0 1 8 0v2' },
-  { to: '/armory', label: 'Оружие', perm: 'armory.view_own', icon: 'M12 3 5 6v6c0 4.2 2.8 7.2 7 9 4.2-1.8 7-4.8 7-9V6z' },
+  { to: '/armory', label: 'Склад', perm: 'armory.view_own', icon: 'M4 8h16v11H4zM4 12h16M9 8V5h6v3' },
   { to: '/losses', label: 'Утери', perm: 'loss.view_own', icon: 'M12 4 4 8l8 4 8-4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4' },
   { to: '/requests', label: 'Реестр', perm: 'requests.create', icon: 'M5 6h14v12H5zM5 10h14M9 6V4h6v2' },
   { to: '/accounting', label: 'Казна', perm: 'accounting.view', icon: 'M12 4v16M16.5 7.5c-.8-1.2-2.4-2-4.5-2-2.8 0-4.5 1.3-4.5 3S9.2 11.5 12 11.5s4.5 1.2 4.5 3-1.7 3-4.5 3c-2.1 0-3.7-.8-4.5-2' },

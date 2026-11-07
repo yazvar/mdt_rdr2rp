@@ -21,7 +21,15 @@
   background: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(166, 132, 86, 0.55) transparent;
 }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(166, 132, 86, 0.5); border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(230, 201, 138, 0.75); }
+*::-webkit-scrollbar-corner { background: transparent; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -222,6 +230,8 @@ td { transition: background .16s ease; }
 .notice { border-left: 3px solid var(--gold-2); padding: 8px 10px; background: rgba(230, 201, 138, 0.06); }
 .notice.bad { border-color: var(--danger); background: rgba(224, 122, 114, 0.12); }
 .sentence { display: grid; gap: 14px; }
+.sentence-search { display: grid; gap: 4px; position: sticky; top: 0; z-index: 2; background: #171c23; padding-bottom: 2px; }
+.sentence-search span { color: var(--muted); font-size: 12px; }
 .sentence h3 { margin: 0; font-family: var(--display); font-size: 15px; color: var(--gold); font-weight: 500; }
 .sentence-list { display: grid; gap: 8px; }
 .sentence-row { border: 1px solid #2a313b; border-radius: 12px; padding: 8px 10px; display: grid; gap: 6px; }
@@ -234,6 +244,19 @@ td { transition: background .16s ease; }
   width: 100%; padding: 0; border: 0; background: transparent; accent-color: var(--gold);
 }
 .sentence-fixed { color: var(--gold); font-size: 13px; }
+.blank { display: grid; gap: 8px; border: 1px solid #2a313b; border-radius: 12px; padding: 10px; background: #12161c; }
+.blank h3 { margin: 0; font-size: 14px; }
+.blank-text {
+  margin: 0;
+  white-space: pre-wrap;
+  background: #0e1116;
+  border: 1px solid #2a313b;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
+}
 .citizen-form, .citizen-view { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: start; }
 .portrait-wrap { display: grid; justify-items: center; gap: 8px; }
 .portrait {

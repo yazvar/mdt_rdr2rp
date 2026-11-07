@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { parseMoneyToCents, summarizeCharges, totalsError } from '@mdt/shared'
+import { articleChargeLabel, BLANK_DEPARTMENTS, fineBlankText, guessBlankDepartment, parseMoneyToCents, summarizeCharges, totalsError } from '@mdt/shared'
 import { api } from '../api'
 import { can, useAuth } from '../auth'
 import { CitizenSelect } from '../citizenPick'
@@ -46,6 +46,19 @@ export function FinesPage() {
     onSuccess: async () => { toast.success('Штраф оформлен.'); setCreating(false); await queryClient.invalidateQueries() },
     onError: (error: Error) => toast.error(error.message),
   })
+  async function removeFine() {
+    if (!detail.data) return
+    const answer = await confirm({
+      title: 'Удалить штраф из базы',
+      body: 'Запись исчезнет из архива. Если штраф уже проведён в казну, оплата будет сторнирована.',
+      reason: true,
+      danger: true,
+    })
+    if (!answer.ok) return
+    api(`/api/fines/${detail.data.id}/delete`, { method: 'POST', body: JSON.stringify({ version: detail.data.version, reason: answer.reason }) })
+      .then(async () => { toast.success('Штраф удалён из базы.'); setParams({}); await queryClient.invalidateQueries() })
+      .catch((error: Error) => toast.error(error.message))
+  }
   async function payment(action: string) {
     if (!detail.data) return
     const needsReason = action === 'cancel' || action === 'sentence_cancelled'
@@ -79,6 +92,18 @@ export function FinesPage() {
         </div>
         <PunishmentPicker laws={laws.data?.items ?? []} value={form.charges} symbol={auth.department?.currencySymbol} onChange={(charges) => setForm({ ...form, charges })} />
         {adjust && <div className="form-grid"><Field label="Иная сумма"><input value={form.adjustment} onChange={(event) => setForm({ ...form, adjustment: event.target.value })} /></Field><Field label="Причина изменения"><input value={form.adjustmentReason} onChange={(event) => setForm({ ...form, adjustmentReason: event.target.value })} /></Field></div>}
+        <FineBlank
+          citizen={`${form.offenderFirstName} ${form.offenderLastName}`.trim()}
+          articles={form.charges.map((choice) => {
+            const law = laws.data?.items.find((item) => item.id === choice.lawId)
+            return law ? articleChargeLabel(law.articleNumber, law.grade) : ''
+          }).filter(Boolean).join(', ')}
+          fineCents={form.adjustment.trim() ? (parseMoneyToCents(form.adjustment) ?? summary.fineCents) : summary.fineCents}
+          terms={summary.jailDays}
+          department={guessBlankDepartment(auth.department?.name ?? '', auth.department?.county ?? '')}
+          rank={(auth.user?.employee?.rank ?? '').toLocaleLowerCase('ru-RU')}
+          officer={auth.user?.employee ? `${auth.user.employee.firstName} ${auth.user.employee.lastName}` : ''}
+        />
         <Button disabled={!auth.online || save.isPending || form.charges.length === 0 || overCap}>Выписать</Button>
       </form></Modal>}
       {detail.data && <Modal title={detail.data.fineNumber} onClose={() => setParams({})}>
@@ -87,11 +112,25 @@ export function FinesPage() {
         <p>{money(detail.data.amountCents, auth.department?.currencySymbol)}{detail.data.adjusted ? ` (изменено: ${detail.data.adjustmentReason})` : ''}. Срок: {detail.data.jailDays}.</p>
         {detail.data.charges.map((charge) => <div key={charge.articleNumber}>{charge.articleNumber} — {charge.title}</div>)}
         {detail.data.history && detail.data.history.length > 0 && <div><h3>Другие штрафы персонажа</h3>{detail.data.history.map((item) => <div key={item.fineNumber}>{item.fineNumber} · {money(item.amountCents, auth.department?.currencySymbol)}</div>)}</div>}
+        <FineBlank
+          citizen={`${detail.data.offenderFirstName} ${detail.data.offenderLastName}`.trim()}
+          articles={detail.data.charges.map((charge) => {
+            const law = laws.data?.items.find((item) => item.articleNumber === charge.articleNumber)
+            return articleChargeLabel(charge.articleNumber, law?.grade ?? '')
+          }).join(', ')}
+          fineCents={detail.data.amountCents}
+          terms={detail.data.jailDays}
+          department={guessBlankDepartment(auth.department?.name ?? '', auth.department?.county ?? '')}
+          rank={(auth.user?.employee?.rank ?? '').toLocaleLowerCase('ru-RU')}
+          officer={detail.data.issuerName}
+          now={new Date(detail.data.issuedAt)}
+        />
         <div className="row" style={{ marginTop: 12 }}>
           <Button ghost onClick={() => api<Record<string, unknown>>(`/api/fines/${detail.data?.id}/document`).then(setPrintDoc)}>Документ</Button>
           {manage && <Button onClick={() => payment('mark_paid')}>Оплачен</Button>}
           {manage && <Button onClick={() => payment('sentence_served')}>Наказание исполнено</Button>}
           {manage && <Button danger onClick={() => payment('cancel')}>Отменить</Button>}
+          {manage && <Button danger onClick={() => removeFine()}>Удалить из базы</Button>}
         </div>
       </Modal>}
       {printDoc && <div className="modal-back"><div className="paper">
@@ -105,6 +144,58 @@ export function FinesPage() {
         <div className="stamp">ШЕРИФ</div>
         <div className="no-print row"><Button onClick={() => window.print()}>Печать</Button><Button ghost onClick={() => setPrintDoc(null)}>Закрыть</Button></div>
       </div></div>}
+    </div>
+  )
+}
+
+function FineBlank(props: {
+  citizen: string
+  articles: string
+  fineCents: number
+  terms: number
+  department: string
+  rank: string
+  officer: string
+  now?: Date
+}) {
+  const toast = useToast()
+  const listId = useId()
+  const [passport, setPassport] = useState('')
+  const [department, setDepartment] = useState(props.department)
+  const [rank, setRank] = useState(props.rank)
+  const text = fineBlankText({
+    citizen: props.citizen,
+    passport,
+    articles: props.articles,
+    fineCents: props.fineCents,
+    terms: props.terms,
+    department,
+    rank,
+    officer: props.officer,
+    now: props.now,
+  })
+  return (
+    <div className="blank">
+      <h3>Бланк для игры</h3>
+      <p className="muted">Статьи, штраф и сроки подставляются сами. Скопируйте текст и вставьте его в бланк.</p>
+      <div className="form-grid">
+        <Field label="№ паспорта"><input value={passport} onChange={(event) => setPassport(event.target.value)} placeholder="123456" /></Field>
+        <Field label="Департамент">
+          <input value={department} onChange={(event) => setDepartment(event.target.value)} list={listId} />
+          <datalist id={listId}>
+            {BLANK_DEPARTMENTS.map((item) => <option key={item} value={item} />)}
+          </datalist>
+        </Field>
+        <Field label="Звание"><input value={rank} onChange={(event) => setRank(event.target.value)} /></Field>
+      </div>
+      <pre className="blank-text">{text}</pre>
+      <div>
+        <Button type="button" onClick={() => {
+          navigator.clipboard.writeText(text)
+            .then(() => toast.success('Текст бланка скопирован.'))
+            .catch(() => toast.error('Не удалось скопировать. Выделите текст вручную.'))
+        }}>Скопировать бланк</Button>
+      </div>
     </div>
   )
 }
